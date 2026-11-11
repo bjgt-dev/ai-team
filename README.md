@@ -18,7 +18,7 @@ it together.
   签名，通过才执行；操作脚本不存在时默认拒绝（fail-closed）。
 - **评测（eval OS）**：任务执行前后过 verifier 五门；三考试（正常成功 /
   篡改拦截 / 空工作目录）是评测方法的回归用例。
-- **技能库（skills/）**：58 个技能包（团队自研 + Matt Pocock 开源技能），
+- **技能库（skills/）**：57 个技能包（团队自研 + Matt Pocock 开源技能），
   覆盖派发、执行、复核、情报、内容、运维。
 - **SOP 与架构文档（docs/）**：交接、预检、派发、复盘、评审的标准流程。
 
@@ -33,7 +33,7 @@ scripts/            # 核心脚本：门禁、队列 API、执行器、验证器
   c2-verifier-*     # 验证器
   team-monitor.sh   # 团队监视探针（只读）
 docs/               # 架构、工程规范、SOP
-skills/             # 技能定义（58 包，见 THIRD_PARTY_NOTICES.md）
+skills/             # 技能定义（57 包，见 THIRD_PARTY_NOTICES.md）
 contracts/          # 任务合同 schema（CONTRACT_SCHEMA.md）
 state/l3-v2/        # 角色注册表与权限设计
 state/handovers/    # 席位交接模板

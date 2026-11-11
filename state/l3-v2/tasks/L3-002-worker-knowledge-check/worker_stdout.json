@@ -1,0 +1,1 @@
+{"error":{"code":"bad_request","message":"invalid JSON at byte 64: invalid character 'w' after object key:value pair","requestId":"req_wm6fp2eydz2dtktahlfsyb4bai","retryable":false,"operationId":null,"docs_url":"https://instabox.sh/docs/errors#bad-request"}}

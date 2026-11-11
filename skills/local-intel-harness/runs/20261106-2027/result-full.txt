@@ -1,0 +1,2 @@
+2026-11-06 20:27:10 overload-guard: cpu=85% >= 60%，跳过采集相位，仅入库（用当日缓存）
+{"mode": "incremental", "result": "SKIPPED_OVERLOAD", "overload_pct": 85}

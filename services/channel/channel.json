@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "bind": "127.0.0.1",
+  "port": 18902,
+  "token_file": "/home/ubuntu/ai-team/state/.channel-token",
+  "hooks": {
+    "url": "http://127.0.0.1:18789/hooks/agent",
+    "token_file": "/home/ubuntu/ai-team/state/.hooks-token",
+    "agent_id": "butler",
+    "session_key": "agent:butler:channel",
+    "timeout_s": 30
+  },
+  "limits": {
+    "max_body_bytes": 65536,
+    "max_text_chars": 8000
+  },
+  "rules": {
+    "business_prefixes": ["/task", "/任务", "/业务", "/派单", "【业务】", "[业务]"],
+    "business_keywords": [
+      "派单", "契约", "验收", "门禁", "上线", "部署", "切流", "生产变更",
+      "方案", "评审", "审批", "拍板", "工人", "队列", "架构", "预算",
+      "合同", "对外发布", "故障", "抢修", "回滚", "备份恢复", "账号", "密钥",
+      "服务器", "网关", "数据库", "schema", "迁移"
+    ],
+    "light_prefixes": ["/help", "/帮助", "/ping", "/status", "/状态"],
+    "light_keywords": ["你好", "您好", "hi", "hello", "谢谢", "多谢", "再见", "拜拜"]
+  },
+  "log_file": "/home/ubuntu/ai-team/logs/channel-router.jsonl"
+}

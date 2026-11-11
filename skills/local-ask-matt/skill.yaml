@@ -1,0 +1,27 @@
+name: local_ask_matt
+title: Local ask matt
+description: Ask which skill or flow fits your situation. A router over the skills in this repo.
+category: Work and knowledge
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  status: active
+  needs_review: false
+  evidence_handles:
+  - /home/hatch/workspace/custom-skills/local-ask-matt/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-grilling/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-implement/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-grill-me/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-grill-with-docs/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-implement-spec/SKILL.md
+  measurement:
+    proxy_metric_id: skill_invocation_error_rate
+    success_criterion: local_ask_matt routes grilling and implement work only to local_grilling and local_implement and the three retired entries produce zero invocations during the window
+    window_days: 14
+  rationale: The inventory marks local_ask_matt managed with needs_review true and include_in_prompt true, so it is listed in every conversation. Its SKILL.md still routes step 1 to grill-with-docs with grill-me as the no-directory fallback and routes whole-spec work to implement-spec, while the inventory marks local_grill_me, local_grill_with_docs and local_implement_spec retired and their methods merged into local_grilling (design tree plus docs only when asked) and local_implement (direct path plus integration branch frontier worktree review path). That stale routing is a live path back to retired skills and directly undoes the prior grilling and implement consolidations. The update preserves every route inside the two surviving skills, so no method is lost. Other clusters checked in this window, such as writing fragments versus beats versus shape, are distinct explore and exploit stages with no evidence of wrong routing, and the cron runs in chunk 4 all succeeded while the browser tool failures carry no skill contract, so no second proposal is made for those signals.
+  review_after: 2026-11-18T06:54:00.483662+00:00
+  reviewed_at: 2026-11-04T06:54:00.483662+00:00
+  run_id: sirun_329d708d2c274463a8d36fb83be7df9c

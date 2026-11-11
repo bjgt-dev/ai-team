@@ -1,0 +1,22 @@
+name: local_implement_spec
+title: Local implement spec
+description: Implement the result of /to-spec and /to-tickets in code.
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  status: retired
+  evidence_handles:
+  - /home/hatch/workspace/custom-skills/local-implement/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-implement-spec/SKILL.md
+  measurement:
+    proxy_metric_id: skill_invocation_error_rate
+    success_criterion: local_implement_spec no longer appears in active skill discovery and produces zero invocations or invocation errors during the window, while local_implement remains discoverable and its ticket-graph method is usable.
+    window_days: 14
+  needs_review: false
+  rationale: Retirement half of the implement consolidation. The merged local_implement preserves the full task-graph method from local_implement_spec, including the integration branch, frontier, worktree implementers and closing review, so the separate spec entry only fragments discovery for the same implement-from-spec-or-tickets outcome.
+  review_after: 2026-11-16T23:08:02.645692+00:00
+  reviewed_at: 2026-11-02T23:08:02.645692+00:00
+  run_id: sirun_80b725deeb2d4ecc83cf2690f28b0620

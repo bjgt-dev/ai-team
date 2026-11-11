@@ -1,0 +1,22 @@
+name: local_claude_handoff
+title: Local claude handoff
+description: Hand the current conversation off to a fresh background agent that picks up the work immediately.
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  status: retired
+  evidence_handles:
+  - /home/hatch/workspace/custom-skills/local-handoff/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-claude-handoff/SKILL.md
+  measurement:
+    proxy_metric_id: skill_invocation_error_rate
+    success_criterion: local_claude_handoff no longer appears in active skill discovery and produces zero invocations or invocation errors during the window.
+    window_days: 14
+  needs_review: false
+  rationale: Retirement half of the handoff consolidation. The merged local_handoff preserves this skill's method, including the suggested skills section, artifact references, redaction, and immediate background agent delivery, so the separate entry only fragments discovery for the same handoff outcome.
+  review_after: 2026-11-17T07:07:52.054480+00:00
+  reviewed_at: 2026-11-03T07:07:52.054480+00:00
+  run_id: sirun_fea959bd22834b38863e3ab2abfa8601

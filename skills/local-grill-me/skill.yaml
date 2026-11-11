@@ -1,0 +1,22 @@
+name: local_grill_me
+title: Local grill me
+description: A relentless interview to sharpen a plan or design.
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  status: retired
+  needs_review: false
+  evidence_handles:
+  - /home/hatch/workspace/custom-skills/local-grill-me/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-grilling/SKILL.md
+  measurement:
+    proxy_metric_id: skill_invocation_error_rate
+    success_criterion: local_grill_me no longer appears in active skill discovery and produces zero invocations or invocation errors during the window.
+    window_days: 14
+  rationale: Retirement half of the grilling consolidation. Its whole method is a delegation to grilling, and the merged local_grilling preserves that method, so the separate entry only fragments discovery.
+  review_after: 2026-11-16T07:55:02.887143+00:00
+  reviewed_at: 2026-11-02T07:55:02.887143+00:00
+  run_id: sirun_69853ecef4ce49eba47e05a5d32ec8ad

@@ -1,0 +1,12 @@
+{
+  "task_id": "L3-004-verify-archive",
+  "verdict": "REWORKED-2",
+  "created_at": "2026-11-02T12:45:00+08:00",
+  "reconciliation_note": "state/l3-v2/tasks/L3-001-reconcile-stage2-queue/reconciliation-note.md",
+  "attempt2_log": "state/l3-v2/tasks/L3-003-failure-fallback-test/attempt2.log",
+  "caliber_note": "state/l3-v2/tasks/L3-002-worker-knowledge-check/口径说明.md",
+  "stage2_receipt": "state/stage2-20261102/receipt.json",
+  "semantic_round1": "FAIL 2026-11-02 12:27 receipt revival-receipt-20261102-122748-623631.md",
+  "semantic_round2": "FAIL 2026-11-02 12:44 receipt revival-receipt-20261102-124438-644358.md",
+  "action": "third semantic review required before DONE"
+}

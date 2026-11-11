@@ -1,0 +1,57 @@
+{
+ "run_dir": "runs/20261106-2038",
+ "verdict": "PASS",
+ "checks": [
+  {
+   "name": "result_json_valid",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "mode_incremental",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "source_skills_present",
+   "pass": true,
+   "detail": "sources={'GitHub Trending': 12, 'V2EX': 9, 'Bilibili': 12, 'YouTube': 12, 'Linux Do': 0, 'X': 0, '技能': 10}"
+  },
+  {
+   "name": "counts_nonnegative",
+   "pass": true,
+   "detail": "new=2 skill_new=0"
+  },
+  {
+   "name": "record_grew",
+   "pass": true,
+   "detail": "record 102 -> 106"
+  },
+  {
+   "name": "record_has_round_section",
+   "pass": true,
+   "detail": "record-tail 里应有本轮 ## HH:MM 增量小节"
+  },
+  {
+   "name": "skills_appended_matches_registry",
+   "pass": true,
+   "detail": "skills_appended=0（result.json 有键）登记表第七节实际增加=0"
+  },
+  {
+   "name": "free_hits_matches_alert",
+   "pass": true,
+   "detail": "free_hits=0（result.json 有键）本轮新增报警文件=0"
+  },
+  {
+   "name": "source_failures_listed",
+   "pass": true,
+   "detail": "本轮源失败 1 项：X：x-cookies.json missing: X login not done yet (needs browser task)"
+  }
+ ],
+ "source_failures": [
+  {
+   "source": "X",
+   "message": "x-cookies.json missing: X login not done yet (needs browser task)"
+  }
+ ]
+}

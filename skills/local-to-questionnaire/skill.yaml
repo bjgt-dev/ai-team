@@ -1,0 +1,10 @@
+name: local_to_questionnaire
+title: Local to questionnaire
+description: Turn a decision you can't fully answer into a questionnaire for someone else to fill in.
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  needs_review: true

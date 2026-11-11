@@ -1,0 +1,24 @@
+{
+  "verify_item": "worker-6 workers.json amendment",
+  "decision_basis": "hub /home/ubuntu/ai-team/state/l3-v2/final-audit/b-decision-20261102.md item 3; 17:55 ruling: UNVERIFIED + correction_20261102, DELISTED revoked",
+  "verifier_role": "supervisor_worker (independent review seat, not implementer)",
+  "workers_json": "/home/ubuntu/ai-team/state/l3-v2/workers.json",
+  "workers_json_sha256": "0011dc1fb808efa814e44573a060df23169d42097d8c169174b9736f8934845a",
+  "backup_file": "/home/ubuntu/ai-team/state/l3-v2/backup/workers.json.bak-20261102-w6",
+  "backup_sha256": "390a6ce067575bebbf746951a4108d74bcb4e9029b702f72af1970e77cd07518",
+  "evidence_file": "/home/ubuntu/ai-team/state/l3-v2/final-audit/evidence/evidence-inventory-machines-20261102.md",
+  "checks": {
+    "item1_new_workers_json": "PASS",
+    "item1_detail": "worker-6 status=UNVERIFIED; note exactly '2026-11-02 13:44 InstaBox API 只读实测未返回此机器，无法确证在线状态；保留条目不作删除，待后续 API 复查确认。'; correction_20261102 present and contains machine_id m_agqv3oeaqad7z75wlewoy47eg4 and '不在返回列表（5台：worker-1至worker-5）'; verified=false, in_pool=false unchanged; no DELISTED value.",
+    "item2_backup_diff_machine_id": "PASS",
+    "item2_detail": "Backup worker-6 machine_id=m_agqv3oeaqad7z75wlewoy47eg4, new worker-6 machine_id identical, unchanged. diff -u backup vs new shows exactly one changed line (the worker-6 line: status UNKNOWN->UNVERIFIED plus added note and correction_20261102); no other line changed.",
+    "item3_evidence_consistency": "PASS",
+    "item3_detail": "Evidence file states API returned 5 machines (worker-1 to worker-5, nextCursor=None) and 'worker-6 至 worker-10：本次 API 列表中不存在，未验证，不得编造。此前 Registry 中的 worker-6 未在本次 API 返回中出现。' Consistent with the note wording (2026-11-02 13:44 API read-only test did not return this machine, online status cannot be confirmed).",
+    "item4_count_and_json_valid": "PASS",
+    "item4_detail": "workers.json contains 8 entries: worker-1, worker-2, worker-3, worker-4, worker-5, worker-6, seat-muse, hub-local; the other 7 are present, none deleted. python3 json.load exit 0."
+  },
+  "overall": "PASS",
+  "method": "read-only verification via ssh arm-agent; workers.json and backup were not modified; only this verification file was written",
+  "note_on_count": "The 'other 7' are worker-1..worker-5 plus seat-muse and hub-local.",
+  "verified_at": "2026-11-02T18:00:26+08:00"
+}

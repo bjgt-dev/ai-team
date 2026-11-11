@@ -1,0 +1,22 @@
+name: local_implement
+title: Local implement
+description: Implement a piece of work based on a spec or set of tickets, using its ticket graph when one exists.
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  status: active
+  evidence_handles:
+  - /home/hatch/workspace/custom-skills/local-implement/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-implement-spec/SKILL.md
+  measurement:
+    proxy_metric_id: skill_invocation_error_rate
+    success_criterion: local_implement_spec no longer appears in active skill discovery and produces zero invocations or invocation errors during the window, while local_implement remains discoverable and its ticket-graph method is usable.
+    window_days: 14
+  needs_review: false
+  rationale: 'The load_evidence inventory counts 34 active learned skills and the run brief requires consolidation before adding more. local_implement (inventory revision 3df7b5dfeac20b5d8f2a18d68c0c50dd3127b5e851eeefcfe8d7acdf91824571) is a five-line stub for implementing work from a spec or tickets, while local_implement_spec (revision 42e6dee1ad0978cef8c23c4abd95cf53fac628ec95f870c817b7e8b404d7ced5) gives the detailed nine-step task-graph method for the same outcome. The merged document preserves both paths: the direct current-branch path from the stub and the integration-branch, frontier, worktree and review path from the spec skill, so no method is lost. The other evidence in this window does not ground a new skill: the deterministic candidates concern objective-loop trigger policy, which is out of scope for managed skill docs, and the 95 delegated and tool failures are generic exec and browser failures with no single skill contract, plus one failed hub-health-30m cron run (2004e6f7-fd40-4248-affe-e2bacfaa4bee) reporting only that work was not finished.'
+  review_after: 2026-11-16T23:08:02.645692+00:00
+  reviewed_at: 2026-11-02T23:08:02.645692+00:00
+  run_id: sirun_80b725deeb2d4ecc83cf2690f28b0620

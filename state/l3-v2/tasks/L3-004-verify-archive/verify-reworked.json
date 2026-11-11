@@ -1,0 +1,10 @@
+{
+  "task_id": "L3-004-verify-archive",
+  "verdict": "REWORKED",
+  "deterministic": "PASS (exists/nonempty)",
+  "semantic": "FAIL on first review (2026-11-02 12:27, receipt revival-receipt-20261102-122748-623631.md, sha e2c190c3)",
+  "action": "L3-002 re-run as 002b, L3-003 report rewritten with evidence paths, re-review required before DONE",
+  "conflict_path": "knowledge-assets/C-knowledge/ai-model/更正-ollama模型库-20261102.md",
+  "stage2_receipt_path": "state/stage2-20261102/receipt.json",
+  "stage2_review_sha": "f3c9bd41635cb6723b025f855e586734d3c4e1356b1c96196f0a1c0753a34ea7"
+}

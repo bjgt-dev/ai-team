@@ -1,0 +1,27 @@
+# 构建产物与运行数据不进仓
+*.bak
+*.bak-*
+.env*
+*.log
+*.pyc
+__pycache__/
+.pytest_cache/
+venv/
+venvs/
+node_modules/
+.DS_Store
+# 凭据与密钥（绝不要提交；部署时自建）
+*.pem
+*.key
+*-token
+*.sqlite3
+*.db
+# 运行数据（即使误拷进来也不提交；注意 state/ 用 state/* 写法，
+# 否则下面的 ! 排除不生效）
+state/*
+!state/l3-v2/
+!state/handovers/
+!state/eval-os-phase2/
+!state/baselines/
+logs/
+knowledge/

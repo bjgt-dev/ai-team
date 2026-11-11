@@ -1,0 +1,10 @@
+name: local_pr
+title: Local pr
+description: Use when writing a PR body.
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  needs_review: true

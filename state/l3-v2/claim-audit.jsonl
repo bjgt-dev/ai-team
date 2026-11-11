@@ -1,0 +1,1 @@
+{"task_id": "L3-TEST-FENCING-20261102", "old_token": "92f487f8ccb21055", "given_token": "wrongtoken00000000", "caller_pid": 1029800, "ts": "2026-11-02T18:02:49.319002+08:00", "reason": "stale_token_rejected"}

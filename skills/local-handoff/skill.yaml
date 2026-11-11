@@ -1,0 +1,23 @@
+name: local_handoff
+title: Local handoff
+description: Compact the current conversation into a handoff summary for another agent to pick up, either as a saved document or as a fresh background agent starting prompt.
+category: Work and knowledge
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  status: active
+  evidence_handles:
+  - /home/hatch/workspace/custom-skills/local-handoff/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-claude-handoff/SKILL.md
+  measurement:
+    proxy_metric_id: skill_invocation_error_rate
+    success_criterion: local_claude_handoff no longer appears in active skill discovery and produces zero invocations during the window, while local_handoff remains discoverable and usable for both the saved document route and the immediate background agent route.
+    window_days: 14
+  needs_review: false
+  rationale: 'The run brief counts 33 active learned skills and requires consolidation before adding more. The two handoff skills read in full share the same method: a handoff summary tailored to the next session focus, a suggested skills section, reference by path or URL instead of duplicating artifacts, and redaction of sensitive information. They differ only in delivery, one saving a document and the other launching a fresh background agent immediately. The merged local_handoff preserves both routes, so retiring the separate entry removes one discovery entry without losing a method. No new skill is proposed alongside this merge: the other recurring lessons in this window are already codified as standing operating context rather than a distinct reusable skill gap.'
+  review_after: 2026-11-17T07:07:52.054480+00:00
+  reviewed_at: 2026-11-03T07:07:52.054480+00:00
+  run_id: sirun_fea959bd22834b38863e3ab2abfa8601

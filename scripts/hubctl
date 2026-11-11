@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# hubctl — thin client for gate-svc (bash + curl). Default: http://127.0.0.1:8093
+# Usage:
+#   hubctl health
+#   hubctl search <seat> <slug> <query...>
+#   hubctl verify <slug> [--plan <plan_id>] <receipt_id...>
+#   hubctl approve <task_slug>        (token via GATE_CHAIRMAN_TOKEN_FILE or GATE_CHAIRMAN_TOKEN env)
+#   hubctl act <seat> <task> <action> <plan_id> <receipt_id,receipt_id...>
+set -euo pipefail
+BASE="${GATE_SVC_URL:-http://127.0.0.1:8093}"
+
+usage() {
+  echo "usage: hubctl health | search <seat> <slug> <query...> | verify <slug> [--plan <plan_id>] <receipt_id...> | approve <task_slug> | act <seat> <task> <action> <plan_id> <receipt_id,receipt_id...>" >&2
+}
+
+post() { # $1=path, $2=json-stdin-file-or-dash
+  curl -fsS -X POST "$BASE$1" -H 'Content-Type: application/json' --data @"$2" | python3 -m json.tool
+}
+
+cmd="${1:-}"
+if [ $# -gt 0 ]; then shift; fi
+case "$cmd" in
+  health)
+    curl -fsS "$BASE/health" | python3 -m json.tool
+    ;;
+  search)
+    [ $# -ge 3 ] || { usage; exit 2; }
+    seat="$1"; slug="$2"; shift 2
+    jq -n --arg seat "$seat" --arg slug "$slug" --arg query "$*" \
+      '{seat:$seat,slug:$slug,query:$query}' > /tmp/hubctl-body.json
+    post /search /tmp/hubctl-body.json
+    ;;
+  verify)
+    [ $# -ge 2 ] || { usage; exit 2; }
+    slug="$1"; shift
+    plan=""
+    if [ "${1:-}" = "--plan" ]; then plan="$2"; shift 2; fi
+    [ $# -ge 1 ] || { usage; exit 2; }
+    ids_json=$(printf '%s\n' "$@" | jq -R . | jq -s .)
+    if [ -n "$plan" ]; then
+      jq -n --arg slug "$slug" --arg plan "$plan" --argjson ids "$ids_json" \
+        '{slug:$slug,plan_id:$plan,receipt_ids:$ids}' > /tmp/hubctl-body.json
+    else
+      jq -n --arg slug "$slug" --argjson ids "$ids_json" \
+        '{slug:$slug,receipt_ids:$ids}' > /tmp/hubctl-body.json
+    fi
+    post /verify /tmp/hubctl-body.json
+    ;;
+  approve)
+    [ $# -ge 1 ] || { usage; exit 2; }
+    if [ -n "${GATE_CHAIRMAN_TOKEN_FILE:-}" ]; then
+      token=$(cat "$GATE_CHAIRMAN_TOKEN_FILE")
+    elif [ -n "${GATE_CHAIRMAN_TOKEN:-}" ]; then
+      token="$GATE_CHAIRMAN_TOKEN"
+    else
+      echo "hubctl approve: set GATE_CHAIRMAN_TOKEN_FILE or GATE_CHAIRMAN_TOKEN" >&2
+      exit 2
+    fi
+    jq -n --arg token "$token" --arg slug "$1" \
+      '{chairman_token:$token,task_slug:$slug}' > /tmp/hubctl-body.json
+    post /approve /tmp/hubctl-body.json
+    ;;
+  act)
+    [ $# -ge 5 ] || { usage; exit 2; }
+    seat="$1"; task="$2"; action="$3"; plan="$4"; ids_csv="$5"
+    ids_json=$(printf '%s' "$ids_csv" | tr ',' '\n' | jq -R . | jq -s .)
+    jq -n --arg seat "$seat" --arg task "$task" --arg action "$action" \
+      --arg plan "$plan" --argjson ids "$ids_json" \
+      '{seat:$seat,task:$task,action:$action,plan_id:$plan,receipt_ids:$ids}' > /tmp/hubctl-body.json
+    post /act /tmp/hubctl-body.json
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac

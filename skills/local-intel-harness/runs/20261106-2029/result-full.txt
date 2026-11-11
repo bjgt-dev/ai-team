@@ -1,0 +1,7 @@
+source Linux Do failed: linuxdo http=403
+source X failed: x-cookies.json missing: X login not done yet (needs browser task)
+source 技能 seed google/skills failed: HTTP Error 403: rate limit exceeded
+source 技能 seed mattpocock/skills failed: HTTP Error 403: rate limit exceeded
+source 技能 seed vercel-labs/agent-skills failed: HTTP Error 403: rate limit exceeded
+source 技能 seed anthropics/skills failed: HTTP Error 403: rate limit exceeded
+{"mode": "incremental", "time": "2026-11-06T20:29:42.145872+08:00", "sources": {"GitHub Trending": 12, "V2EX": 9, "Bilibili": 12, "YouTube": 12, "Linux Do": 0, "X": 0, "技能": 12}, "new": 0, "skill_new": 0}

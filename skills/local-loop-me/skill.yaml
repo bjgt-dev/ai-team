@@ -1,0 +1,22 @@
+name: local_loop_me
+title: Local loop me
+description: Grill me about specs for the workflows I want to build, within this workspace.
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  status: retired
+  evidence_handles:
+  - /home/hatch/workspace/custom-skills/local-loop-me/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-grilling/SKILL.md
+  measurement:
+    proxy_metric_id: skill_invocation_error_rate
+    success_criterion: local_loop_me no longer appears in active skill discovery and produces zero invocations or invocation errors during the window.
+    window_days: 14
+  needs_review: false
+  rationale: Superseded by the merged local_grilling, whose 'Specify workflows' section preserves the loop lens, workflow vocabulary, definition of done, and workspace layout. Keeping it as a separate skill fragments the same interview discipline across two discovery entries.
+  review_after: 2026-11-05T13:43:54.823390+00:00
+  reviewed_at: 2026-10-22T13:43:54.823390+00:00
+  run_id: sirun_b44de8510e6046cd80139fd54620afad

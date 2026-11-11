@@ -1,0 +1,31 @@
+{
+  "reviewer": "supervisor_worker (independent review seat, non-implementer)",
+  "decision_source": "/home/ubuntu/ai-team/state/l3-v2/final-audit/b-decision-20261102.md item 1 (fencing)",
+  "script_path": "/home/ubuntu/ai-team/state/l3-v2/l3_claim.py",
+  "script_sha256": "4d8a3381cf097bcb19a2053fbbb016f1d2edd36b5b623dd30020c5f33e8ecec4",
+  "backup_script_sha256_claimed_and_matched": "2cf9a3a97710c5577b19fd00960a3eb1da17ecce25a01e291a66e38d17bb33c7",
+  "verified_at": "2026-11-02T18:04:02.156891+08:00",
+  "items": {
+    "item1_script_rules": {
+      "result": "PASS",
+      "evidence": "CLAIMED duplicate rejection exit 3 (claim_token not None or status CLAIMED/RUNNING, reason duplicate_claim); GOVERNED_PUSH RUNNING/DONE/FAILED/VERIFYING require argv[4] equal to current claim_token else exit 4 (reason stale_token_rejected); claim_token None tasks rejected exit 4 (reason legacy_token_null) unless --legacy, which annotates only and does not change status; every rejection appends to claim-audit.jsonl; writes use tmp+os.replace; script contains no internal flock, docstring states caller must hold flock and supervisor.run_locked wraps invocation with flock."
+    },
+    "item2_production_audit_format": {
+      "result": "PASS",
+      "evidence": "Production claim-audit.jsonl contains 1 line total (fewer than the requested last 5, because only 1 exists); that line has all 6 fields task_id, old_token, given_token, caller_pid, ts, reason, with reason stale_token_rejected for L3-TEST-FENCING-20261102. Sandbox /tmp/fencing-test/claim-audit.jsonl has 3 lines, all with the same 6 fields, reasons stale_token_rejected, duplicate_claim, legacy_token_null. No token values are recorded in this report."
+    },
+    "item3_queue_legacy_and_test_task": {
+      "result": "PASS",
+      "evidence": "L3-OP-UGC-001: status DONE, attempt 1, claim_token is None (not fabricated), legacy_token_null true. L3-004-review3: status DONE, attempt 0, claim_token is None (not fabricated), legacy_token_null true. L3-TEST-FENCING-20261102: status DONE, attempt 1, claim_token present with length 16 and 16-hex format."
+    },
+    "item4_supervisor_run": {
+      "result": "PASS",
+      "evidence": "Ran python3 /home/ubuntu/ai-team/state/l3-v2/supervisor.py directly; output supervisor ok tasks=8 decision_pending=7, exit 0, no claim_token-related error."
+    }
+  },
+  "notes": [
+    "Production audit file has only 1 line, so last 5 lines check covered all existing lines.",
+    "Script --legacy path sets legacy_bypass, while the two production legacy records carry legacy_token_null=true as specified in the decision document; both are annotation-only and neither changes status or fabricates a token, so this is recorded as an observation, not a failure."
+  ],
+  "overall": "PASS"
+}

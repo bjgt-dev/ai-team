@@ -1,0 +1,22 @@
+name: local_writing_shape
+title: Local writing shape
+description: 'Writing, exploit: shape raw material into an article, paragraph by paragraph or as a journey of beats, grounding each term before it is used.'
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  status: active
+  needs_review: false
+  evidence_handles:
+  - /home/hatch/workspace/custom-skills/local-writing-shape/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-writing-beats/SKILL.md
+  measurement:
+    proxy_metric_id: skill_invocation_error_rate
+    success_criterion: local_writing_beats no longer appears in active skill discovery and produces zero invocations during the window, while local_writing_shape remains discoverable and its beats variant is usable.
+    window_days: 14
+  rationale: 'The inventory counts 32 active learned skills, so the run brief requires consolidation before adding more. Reading both files in full shows local_writing_beats (revision 45bf3eea75edc8a5c71400f1d66a6a4261b79f116832d05c0d2f7231dd5adc0e) and local_writing_shape (revision bfa55d2588f9cf89b0a76898af906c8c7228cb73bf18dddc3d2068a59524e276) are the same exploit outcome: both take a fixed pile of raw material, establish prerequisites, apply the same grounding rule that a concept must be grounded before a later move leans on it, append one agreed unit at a time, and re-read the article file before every write. They differ only in unit size, a beat journey versus paragraph by paragraph shaping. The merged document preserves both modes in full, including the beats candidate offers, the openings choice, the format arguments, and the grounding and append rhythm. local_writing_fragments stays separate because it is the explore stage that mines raw fragments with no structure. The other recurring evidence in this window does not ground a new skill: the repeated chairman pushes, OCI API-first failures, fake completion, missing contracts, discussion versus execution, and guessing without searching the hub archive are already encoded in AGENTS.md and MEMORY.md, the 120 subagent and tool failures are generic exec and browser failures with no single skill contract, and the single failed hub-health-30m cron run carries only a worker not finished report.'
+  review_after: 2026-11-19T06:54:00.357721+00:00
+  reviewed_at: 2026-11-05T06:54:00.357721+00:00
+  run_id: sirun_f7ee8b768c2d4b3e9652662de8597192

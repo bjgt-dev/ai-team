@@ -1,0 +1,10 @@
+name: local_retro
+title: Local retro
+description: Conduct a retrospective on a coding session.
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  needs_review: true

@@ -1,0 +1,10 @@
+name: local_writing_fragments
+title: Local writing fragments
+description: 'Writing, explore: mine raw fragments, no structure yet.'
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  needs_review: true

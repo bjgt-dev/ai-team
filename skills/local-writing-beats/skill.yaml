@@ -1,0 +1,22 @@
+name: local_writing_beats
+title: Local writing beats
+description: Writing, exploit; assemble raw material into a journey of beats, grounding each term before a beat leans on it.
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  status: retired
+  needs_review: false
+  evidence_handles:
+  - /home/hatch/workspace/custom-skills/local-writing-shape/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-writing-beats/SKILL.md
+  measurement:
+    proxy_metric_id: skill_invocation_error_rate
+    success_criterion: local_writing_beats no longer appears in active skill discovery and produces zero invocations during the window, while local_writing_shape remains discoverable and its beats variant is usable.
+    window_days: 14
+  rationale: Retirement half of the writing exploit consolidation. Its whole method is the beats journey over a fixed raw material pile with the same grounding rule as local_writing_shape, and the merged local_writing_shape preserves that method in its journey of beats section, so the separate entry only fragments discovery.
+  review_after: 2026-11-19T06:54:00.357721+00:00
+  reviewed_at: 2026-11-05T06:54:00.357721+00:00
+  run_id: sirun_f7ee8b768c2d4b3e9652662de8597192

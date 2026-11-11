@@ -1,0 +1,20 @@
+{
+  "task_id": "L3-004-verify-archive",
+  "verdict": "PASS",
+  "checks": {
+    "L3-001-reconcile-stage2-queue": {
+      "exists": true,
+      "nonempty": true
+    },
+    "L3-002-worker-knowledge-check": {
+      "exists": true,
+      "nonempty": true
+    },
+    "L3-003-failure-fallback-test": {
+      "exists": true,
+      "nonempty": true
+    }
+  },
+  "conflict": "ollama model library: old claim EMPTY vs new evidence qwen2.5/7b exists -> marked CONFLICT, old version retained, new evidence in 更正 file",
+  "verified_at": "2026-11-02T12:26:00+08:00"
+}

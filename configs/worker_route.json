@@ -1,0 +1,1 @@
+{"llm_executor":"worker_exec.py llm_generate branch, chat only, no shell","rule":"Ops/cold-pull/start-script tasks MUST use shell_exec, never llm_generate","shell_executor":"worker_exec.py shell_exec branch, real bash on worker VM, synced from hub each cycle","shell_keywords":["冷拉","cold-pull","worker_pull","启动脚本","拉取循环","运维","端口","备份","shell","bash"],"version":"2026-10-25-v2"}

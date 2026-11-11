@@ -1,0 +1,34 @@
+128
+4
+102
+/home/ubuntu/ai-team/state/outbox/intel-new-free-2026-11-06-1937.md 
+- tt-a1i/archify ★94074 - Turn any idea, plan, or codebase into a beautiful interactive diagram. An agent skill for  [SKILL.md 未确认]
+- calesthio/OpenMontage ★77453 - World's first open-source, agentic video production system. 12 production pipelines, 100+  [SKILL.md 未确认]
+- ConardLi/garden-skills ★14458 - ConardLi's open-source Skills collection, featuring web design, knowledge retrieval, image [种子跟踪，推送 2026-10-25]
+- scenario-labs/skills ★3344 - Get production-ready images, video, audio, and 3D from any AI agent: skills that pick the  [种子跟踪，推送 2026-11-06]
+- google/skills ★22626 - Agent Skills for Google products and technologies [种子跟踪，推送 2026-11-05]
+- vercel-labs/agent-skills ★33625 - Vercel's official collection of agent skills [种子跟踪，推送 2026-10-28]
+
+## 20:17 增量（14 条新内容）
+- [技能] mattpocock/skills ★316127 - Skills for Real Engineers. Straight from my .agents directory. [SKILL.md 已确认]
+- [技能] obra/superpowers ★313317 - An agentic skills framework & software development methodology that works. [SKILL.md 已确认]
+- [技能] affaan-m/ECC ★298212 - The agent harness performance optimization system. Skills, instincts, memory, security, an [SKILL.md 已确认]
+- [技能] anthropics/skills ★187977 - Public repository for Agent Skills [SKILL.md 已确认]
+- [技能] Shubhamsaboo/awesome-llm-apps ★144007 - 100+ AI Agents, Agent Skills and RAG Apps - Free and Open Source. [SKILL.md 未确认]
+- [技能] JuliusBrussee/caveman ★117909 - 🪨 why use many token when few token do trick. Viral skill + proxy for coding agents that c [SKILL.md 未确认]
+- [技能] addyosmani/agent-skills ★113623 - Production-grade engineering skills for AI coding agents. [SKILL.md 未确认]
+- [技能] Leonxlnx/taste-skill ★111008 - Agent skills that give coding agents taste: art direction, reference images and a browser  [SKILL.md 未确认]
+- [技能] tt-a1i/archify ★94074 - Turn any idea, plan, or codebase into a beautiful interactive diagram. An agent skill for  [SKILL.md 未确认]
+- [技能] calesthio/OpenMontage ★77453 - World's first open-source, agentic video production system. 12 production pipelines, 100+  [SKILL.md 未确认]
+- [技能] ConardLi/garden-skills ★14458 - ConardLi's open-source Skills collection, featuring web design, knowledge retrieval, image [种子跟踪，推送 2026-10-25]
+- [技能] scenario-labs/skills ★3344 - Get production-ready images, video, audio, and 3D from any AI agent: skills that pick the  [种子跟踪，推送 2026-11-06]
+- [技能] google/skills ★22626 - Agent Skills for Google products and technologies [种子跟踪，推送 2026-11-05]
+- [技能] vercel-labs/agent-skills ★33625 - Vercel's official collection of agent skills [种子跟踪，推送 2026-10-28]
+
+## 20:25 增量（6 条新内容）
+- [Bilibili] TES·369单曲《莫问归期》——“若临别眼眶莫湿，只需一句明年一起至。挥挥手莫藏心事，少年辞。” (zone: 电子竞技)
+- [Bilibili] 《再飞行！》MV：终于完整的旋律，是我们继续出发的BGM (zone: 综合)
+- [Bilibili] Roblox 单色 (zone: 单机游戏)
+- [Bilibili] 花4000块让女友和凶猛老虎躺一块睡24小时…她差点被吓破胆！！！ (zone: 日常)
+- [YouTube] How These Startups Cornered The AI Agent Market (channel: Forbes) | https://youtu.be/l9Uy40D6IAI
+- [Linux Do] IOS 订阅管理与追踪 软件限免 (replies:0 likes:1) | https://linux.do/t/3133418

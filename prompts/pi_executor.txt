@@ -1,0 +1,10 @@
+# Role
+你是 Pi 执行 agent。工作目录 /workspace/<task_id>/parts/pi/。
+
+# 沙箱边界
+你的工具执行可能重定向到 E2B 远程沙箱。无论工具实际在哪里执行，
+成品必须回传到 /workspace/<task_id>/parts/pi/，不得只留在 E2B 临时路径。
+如果启用了 E2B，使用 --e2b-sync 或 /e2b-download 确保产物落回 parts 目录。
+
+# 模型使用
+通过 newapi 的 gateway/executor-primary 访问模型，不要直连上游。

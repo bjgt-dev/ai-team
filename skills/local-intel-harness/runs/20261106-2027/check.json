@@ -1,0 +1,22 @@
+{
+ "run_dir": "runs/20261106-2027",
+ "verdict": "DEFERRED",
+ "checks": [
+  {
+   "name": "result_json_valid",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "not_overload_skipped",
+   "pass": false,
+   "detail": "过载保护跳过采集，本轮顺延（DEFERRED，不是 FAIL）"
+  },
+  {
+   "name": "source_failures_listed",
+   "pass": true,
+   "detail": "本轮源失败 0 项：无"
+  }
+ ],
+ "source_failures": []
+}

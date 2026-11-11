@@ -1,0 +1,13 @@
+{
+ "run_id": "20261106-2025 DATE=2026-11-06",
+ "date": "0",
+ "registry_lines_before": 128,
+ "registry_lines_after": 128,
+ "registry_vii_before": 4,
+ "registry_vii_after": 4,
+ "record_lines_before": 94,
+ "record_lines_after": 102,
+ "alert_files_today": [
+  "/home/ubuntu/ai-team/state/outbox/intel-new-free-2026-11-06-1937.md"
+ ]
+}

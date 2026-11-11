@@ -1,0 +1,24 @@
+name: local_grilling
+title: Local grilling
+description: Grill the user relentlessly about a plan, decision, or idea, and create glossary and ADR docs as you go when asked. Use when the user wants to stress-test their thinking, or uses any grill trigger phrases.
+include_in_prompt: true
+availability:
+  confidential_vm: true
+  needs_speech: false
+skill_improvement:
+  managed: true
+  status: active
+  needs_review: false
+  evidence_handles:
+  - /home/hatch/workspace/custom-skills/local-grilling/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-grill-me/SKILL.md
+  - /home/hatch/workspace/custom-skills/local-grill-with-docs/SKILL.md
+  - sirun_b44de8510e6046cd80139fd54620afad
+  measurement:
+    proxy_metric_id: skill_invocation_error_rate
+    success_criterion: local_grill_me and local_grill_with_docs no longer appear in active skill discovery and produce zero invocations during the window, while local_grilling remains discoverable and its docs variant is usable.
+    window_days: 14
+  rationale: The inventory lists 36 active learned skills and the brief calls for consolidation before adding more. The grilling cluster is the cleanest overlap because local_grill_me is a one line delegation to grilling and local_grill_with_docs is a one line delegation to grilling plus domain modeling, while local_grilling holds the actual design tree and frontier round method. The prior retirement of local_loop_me into local_grilling set the same precedent. The merged document preserves the design tree method and adds the docs variant from local_grill_with_docs, so retiring the two delegation entries removes two discovery entries without losing a method.
+  review_after: 2026-11-16T07:55:02.887143+00:00
+  reviewed_at: 2026-11-02T07:55:02.887143+00:00
+  run_id: sirun_69853ecef4ce49eba47e05a5d32ec8ad

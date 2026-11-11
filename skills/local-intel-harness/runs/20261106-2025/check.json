@@ -1,0 +1,22 @@
+{
+ "run_dir": "runs/20261106-2025",
+ "verdict": "FAIL",
+ "checks": [
+  {
+   "name": "result_json_valid",
+   "pass": false,
+   "detail": "result.json 解析失败：Expecting value: line 1 column 1 (char 0)（可能是锁 SKIP 导致空输出）"
+  },
+  {
+   "name": "source_failures_listed",
+   "pass": true,
+   "detail": "本轮源失败 1 项：X：x-cookies.json missing: X login not done yet (needs browser task)"
+  }
+ ],
+ "source_failures": [
+  {
+   "source": "X",
+   "message": "x-cookies.json missing: X login not done yet (needs browser task)"
+  }
+ ]
+}

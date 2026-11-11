@@ -1,0 +1,2 @@
+source X failed: x-cookies.json missing: X login not done yet (needs browser task)
+{"mode": "incremental", "time": "2026-11-06T20:26:28.082776+08:00", "sources": {"GitHub Trending": 12, "V2EX": 9, "Bilibili": 12, "YouTube": 12, "Linux Do": 10, "X": 0, "技能": 16}, "new": 0, "skill_new": 0}

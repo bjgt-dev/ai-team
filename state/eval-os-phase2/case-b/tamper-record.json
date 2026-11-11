@@ -1,0 +1,18 @@
+{
+  "tamper_file": "ladder.py",
+  "tamper_old": "\"Red!\"",
+  "tamper_new": "\"RedX!\"",
+  "original_file_sha256": {
+    "immersion_engine.py": "d107ded663ef3c0b7090862a661b1b3b0737a165e6b9942ad43db644ef4290a6",
+    "ladder.py": "6f5e9c191029cc2d7bbf624cd8c27bb797d9d8d08955e2f6e9a2b89b2e53917f",
+    "simulator.py": "5077f58fc5b8af23ad3ff0df65dc54587028693235e73d8752ed6239740967a7",
+    "test_kids4.py": "75db38366cb89fbb0a0b360f0f9e5473d162efbbe3f80d96b26441dc6ac24834",
+    "test_kids5_1.py": "009c7eb8c203a4701a8527be6482b3f524880367e5e8a2c2fb913aafbed41ad4"
+  },
+  "tampered_file_sha256": "f7752fd27fb0641f9e29b83de0d8a964ee8e17b66c9767254af6beb52635c09d",
+  "valid_bundle_sha256": "8075dd24b14c254dab769ecf551578498e97f0ed4a3b5df0f55cc201242c7ba3",
+  "tampered_bundle_sha256": "199cc1453f3bf98a0a826da3694bb02f9fe6750e5628c98beb8bddcf15902078",
+  "valid_bundle_bytes": 11761,
+  "tampered_bundle_bytes": 11766,
+  "expected_parse_error": "bundle: sha mismatch for ladder.py"
+}

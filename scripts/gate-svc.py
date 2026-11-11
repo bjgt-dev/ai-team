@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """gate-svc: evidence gateway (chairman order S2, cutover 2026-11-10).
 
-Stdlib only (http.server ThreadingHTTPServer). Binds $GATE_BIND_HOST:$GATE_BIND_PORT (default 127.0.0.1:8093).
+Stdlib only (http.server ThreadingHTTPServer). Binds $GATE_BIND_HOST:$GATE_BIND_PORT
+(default 127.0.0.1:8093).
 DB: central_queue in ops-pg container, reached over TCP via psql CLI
 (password from /etc/noesis/gate-db.env, never logged, never in argv).
 
 Endpoints:
   GET  /health
-  POST /search  {seat, slug, query}            -> grep knowledge/, write 2 receipts
+  POST /search  {seat, slug, query}            -> grep knowledge/ + seat memory
+                                                 separately, write 2 receipts with
+                                                 independent result hashes
   POST /approve {chairman_token, task_slug}    -> write plan_approvals
   POST /verify  {receipt_ids, plan_id?, slug}  -> recompute sig, 24h, slug match
   POST /act     {seat, task, action, plan_id, receipt_ids} -> verify, then gate.mode
@@ -138,6 +141,42 @@ def psql(sql):
     if r.returncode != 0:
         raise RuntimeError(f"psql rc={r.returncode}: {r.stderr.strip()[:300]}")
     return r.stdout
+
+
+SEAT_MEMORY_PATHS = {
+    # Durable per-seat memory on the hub. twt keeps MEMORY.md (+ memory/ logs);
+    # butler has no MEMORY.md -- its durable memory record is the arch note.
+    "twt": ["/home/ubuntu/ai-team/state/twt-core-backup/MEMORY.md",
+            "/home/ubuntu/ai-team/state/twt-core-backup/memory"],
+    "butler": ["/home/ubuntu/ai-team/ceo-seat/out/butler-arch-note.md"],
+}
+
+
+def grep_memory(seat, query):
+    """Fixed-string case-insensitive grep over the seat's memory files.
+    Mirrors grep_knowledge; returns (text, partial). A seat with no memory
+    file gets files_matched=0 with its own hash -- still a real receipt
+    proving memory (or its absence) was checked, not a copy of the kb one."""
+    paths = [p for p in SEAT_MEMORY_PATHS.get(seat, []) if os.path.exists(p)]
+    if not paths:
+        return "files_matched=0 (no memory file for this seat)\n", False
+    cmd = ["grep", "-r", "-F", "-i", "-n", "-m", "2", "--", query] + paths
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return "grep timed out", True
+    out = r.stdout or ""
+    files = sorted({line.split(":", 1)[0] for line in out.splitlines() if ":" in line})
+    partial = (r.returncode == 2)
+    header = f"files_matched={len(files)}"
+    if partial:
+        header += " (partial: some memory files are not readable by gatesvc)"
+    header += "\n"
+    text = header + out
+    if len(text) > MAX_RESULT_CHARS:
+        text = text[:MAX_RESULT_CHARS]
+        partial = True
+    return text, partial
 
 
 def grep_knowledge(query):
@@ -472,22 +511,27 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"ok": False, "error": "bad slug"}); return
         if not (isinstance(query, str) and 1 <= len(query) <= MAX_QUERY_LEN):
             self._send(400, {"ok": False, "error": "bad query"}); return
-        result_text, partial = grep_knowledge(query)
+        kb_text, kb_partial = grep_knowledge(query)
+        mem_text, mem_partial = grep_memory(seat, query)
         qh = hashlib.sha256(query.encode()).hexdigest()
-        rh = hashlib.sha256(result_text.encode()).hexdigest()
+        rh_kb = hashlib.sha256(kb_text.encode()).hexdigest()
+        rh_mem = hashlib.sha256(mem_text.encode()).hexdigest()
         ts_str = now_ts()
         receipts = []
-        for kind in ("memory", "kb"):
+        for kind, rh in (("memory", rh_mem), ("kb", rh_kb)):
             sig = receipt_sig(seat, slug, kind, qh, rh, ts_str)
             sql = ("INSERT INTO public.receipts(seat,kind,slug,query_hash,result_hash,ts,sig) "
                    f"VALUES ('{sql_esc(seat)}','{kind}','{sql_esc(slug)}','{qh}','{rh}',"
                    f"'{ts_str}'::timestamptz,'{sig}') RETURNING id;")
             rid = psql(sql).strip().split("\n")[0]
             receipts.append({"kind": kind, "receipt_id": rid})
+        partial = kb_partial or mem_partial
         log("SEARCH", seat, slug, "query_hash=", qh[:12], "receipts=", len(receipts), "partial=", partial)
         self._send(200, {"ok": True, "seat": seat, "slug": slug, "query_hash": qh,
-                         "result_hash": rh, "ts": ts_str, "partial": partial,
-                         "receipts": receipts, "results": result_text})
+                         "result_hash": rh_kb, "memory_result_hash": rh_mem, "ts": ts_str,
+                         "partial": partial,
+                         "receipts": receipts, "results": kb_text,
+                         "memory_results": mem_text})
 
     def _handle_approve(self, data):
         token, task_slug = data.get("chairman_token"), data.get("task_slug")

@@ -82,9 +82,7 @@ export GATE_SVC_URL=http://127.0.0.1:8093
 
 - **回执同源缺陷**（`scripts/gate-svc.py` `_handle_search`）：一次 grep 产生
   一个 `result_hash`，`memory` 与 `kb` 两行回执除 `kind` 外完全相同——
-  所谓 memory 回执并不证明查过 memory。修复方案已定：memory 回执单独
-  grep 记忆文件、各算各的 `result_hash`；修复合入并验收后才推首版。
-  在修复合入前，不要把“memory 回执 + kb 回执”当作两份独立证据。
+  所谓 memory 回执并不证明查过 memory。已修复（2026-11-11）：memory 回执单独 grep 席位记忆文件、各算各的 `result_hash`，并经探针验收（两 kind 的 `result_hash` 不同，旧回执仍可校验）。
 - **SQL 拼接**：回执入库用字符串拼接 + 转义，未参数化；部署前建议审计
   注入面或改参数化查询。
 

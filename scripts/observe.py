@@ -5,11 +5,10 @@
 # O3 /act 通过与拒绝数与拒绝原因分布；O4 central_queue 派单/领取/完成速率与触发器拒绝数；
 # O5 raw_log 各席位增量、extractor 每轮抽取条数与错误。
 # 异常（回滚触发条件）即写 observe.log 标 ALERT。
-import os
 import json, os, subprocess, sys, time, urllib.request
 
 LOG = "/home/ubuntu/ai-team/state/observe.log"
-GATE = os.environ.get("GATE_SVC_URL", "http://127.0.0.1:8093")
+GATE = "http://127.0.0.1:8093"
 STATE = "/home/ubuntu/ai-team/state/gate/observe-state.json"
 
 def psql(sql):

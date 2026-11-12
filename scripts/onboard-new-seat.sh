@@ -14,10 +14,10 @@
 # 两件都做完，脚本再跑一次即通。
 #
 # 依赖：本机须能访问 egress 代理（Muse 平台自带 HTTPS_PROXY）。
-# 枢纽：arm-agent，<HUB_IP>，ubuntu。
+# 枢纽：arm-agent，127.0.0.1，ubuntu。
 set -u
 HUB_HOST="arm-agent"
-HUB_IP="${HUB_IP:-}"  # set to your hub's Tailscale IP, e.g. 100.x.y.z
+HUB_IP="127.0.0.1"
 HUB_USER="ubuntu"
 PROXY="/home/hatch/bin/ts-proxy-noauth.sh"
 

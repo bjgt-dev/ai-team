@@ -38,7 +38,6 @@ check("U1- 工人双计未标注",
       not g.check_role_registry(soul, reg_nodup,
                                 {"workers": w["workers"], "note": ""})[0])
 check("U2+ 只称董事长通过", g.check_denaming("董事长已确认")[0])
-g.REAL_NAME = "测试姓名"  # 自测用占位姓名，不写真实姓名
 check("U2- 真实姓名拦截", not g.check_denaming("测试姓名已确认")[0])
 good = "结论: 通过。阻塞: 无。下一步: 继续。"
 check("U3+ 三段≤300 通过", g.check_report(good, "状态变色")[0])

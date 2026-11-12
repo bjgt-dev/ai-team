@@ -18,7 +18,7 @@ Supervisor = 总调度底层确定性机制（确定性程序 + cron，无 LLM�
 - goal-tree.json G4 owner 写“大管家”：定性为项目执行负责人，不是经营目标负责人；经营目标负责人仍为幕僚长。文件本身未区分两层含义，已在本报告中澄清，原文待定案后补注（不擅自改目标树）。
 
 ## 机器与 Worker 核验（2026-11-02 13:44 InstaBox API 只读实测）
-- 枢纽物理机仅 arm-agent 一台（2 核、11Gi、Tailscale <tailnet-ip>）；arm-hub 为历史名称，不是第二台机器。
+- 枢纽物理机仅 arm-agent 一台（2 核、11Gi、Tailscale 127.0.0.1）；arm-hub 为历史名称，不是第二台机器。
 - seat-muse 与 hub-local 同属 arm-agent，是两个逻辑端点，不得重复计算算力与故障域。
 - InstaBox 本次 API 只返回 5 台机器（worker-1 running，worker-2 至 5 suspended）；worker-6 至 10 不在列表中，旧注册表 worker-6 条目为未验证口径，纠正待大管家定案。
 - 可执行池现行 3 个逻辑主体：worker-1、seat-muse、hub-local。

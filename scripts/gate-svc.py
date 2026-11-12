@@ -126,17 +126,25 @@ def plan_sig(task_slug, ts_str):
     return hmac.new(KEY, msg, hashlib.sha256).hexdigest()
 
 
-def sql_esc(s):
-    return s.replace("'", "''")
+def psql(sql, params=None):
+    """Run one SQL statement via psql CLI; return stdout. Password via env only.
 
-
-def psql(sql):
-    """Run one SQL statement via psql CLI; return stdout. Password via env only."""
+    Parameterized queries at the psql layer (stdlib-only, no DB driver):
+    values are passed as psql -v variables (argv, never inside the SQL
+    text) and referenced in SQL only as :'name' placeholders, which psql
+    interpolates as properly quoted string literals. No caller may embed
+    a value in the SQL string anymore -- the old quote-doubling
+    escape helper is deleted, so a future splice fails loudly (NameError)
+    instead of silently reintroducing injection."""
     env = dict(os.environ)
     env["PGPASSWORD"] = DB["DB_PASSWORD"]
     env["PGCONNECT_TIMEOUT"] = "5"
     cmd = ["psql", "-h", DB["DB_HOST"], "-p", DB["DB_PORT"], "-U", DB["DB_USER"],
            "-d", DB["DB_NAME"], "-v", "ON_ERROR_STOP=1", "-q", "-t", "-A", "-F", "\t"]
+    for k, v in (params or {}).items():
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", k):
+            raise ValueError("bad psql param name: %r" % k)
+        cmd += ["-v", "%s=%s" % (k, v)]
     r = subprocess.run(cmd, input=sql, text=True, capture_output=True, env=env, timeout=30)
     if r.returncode != 0:
         raise RuntimeError(f"psql rc={r.returncode}: {r.stderr.strip()[:300]}")
@@ -230,7 +238,8 @@ def verify_receipts(receipt_ids, plan_id, slug):
             continue
         rows = psql(
             "SELECT seat, kind, slug, query_hash, result_hash, "
-            f"to_char(ts, '{TO_CHAR_FMT}'), sig FROM public.receipts WHERE id='{rid}';"
+            "to_char(ts, :'tcf'), sig FROM public.receipts WHERE id=:'rid';",
+            {"tcf": TO_CHAR_FMT, "rid": rid},
         ).strip()
         if not rows:
             reasons.append(f"receipt not found: {rid}")
@@ -262,7 +271,8 @@ def verify_receipts(receipt_ids, plan_id, slug):
         else:
             rows = psql(
                 "SELECT task_slug, "
-                f"to_char(ts, '{TO_CHAR_FMT}'), sig FROM public.plan_approvals WHERE plan_id='{plan_id}';"
+                "to_char(ts, :'tcf'), sig FROM public.plan_approvals WHERE plan_id=:'pid';",
+                {"tcf": TO_CHAR_FMT, "pid": plan_id},
             ).strip()
             if not rows:
                 reasons.append(f"plan not found: {plan_id}")
@@ -302,7 +312,8 @@ def canonical_hash(obj):
 def gate_mode(gate_id):
     try:
         return psql(
-            "SELECT mode FROM public.gate_registry WHERE gate_id='%s';" % sql_esc(gate_id)
+            "SELECT mode FROM public.gate_registry WHERE gate_id=:'gid';",
+            {"gid": gate_id},
         ).strip().split("\n")[0].strip()
     except Exception:
         return ""
@@ -311,8 +322,8 @@ def gate_mode(gate_id):
 def gate_overridden(gate_id):
     try:
         row = psql(
-            "SELECT 1 FROM public.gate_overrides WHERE gate_id='%s' AND expires_at > now();"
-            % sql_esc(gate_id)
+            "SELECT 1 FROM public.gate_overrides WHERE gate_id=:'gid' AND expires_at > now();",
+            {"gid": gate_id},
         ).strip()
         return bool(row)
     except Exception:
@@ -323,7 +334,8 @@ def mark_blocked(gate_id):
     try:
         psql(
             "UPDATE public.gate_registry SET last_block_ts=now(), updated_at=now() "
-            "WHERE gate_id='%s';" % sql_esc(gate_id)
+            "WHERE gate_id=:'gid';",
+            {"gid": gate_id},
         )
     except Exception as e:
         log("MARK-BLOCKED-FAILED", gate_id, str(e)[:120])
@@ -426,7 +438,8 @@ def dispatch_gates(task_slug, contract):
         _pid = contract.get("plan_id")
         if isinstance(_pid, str) and _pid.strip():
             try:
-                _row = psql("SELECT 1 FROM public.plan_approvals WHERE plan_id='%s';" % sql_esc(_pid.strip())).strip()
+                _row = psql("SELECT 1 FROM public.plan_approvals WHERE plan_id=:'pid';",
+                            {"pid": _pid.strip()}).strip()
             except Exception as _e:
                 results.append(("plan-id-exists", False, "plan_approvals lookup failed: %s" % str(_e)[:200]))
             else:
@@ -442,11 +455,17 @@ def dispatch_gates(task_slug, contract):
 
 
 def issue_dispatch_receipt(task_id, contract_hash, gates_passed):
+    params = {"tid": task_id, "ch": contract_hash}
+    if gates_passed:
+        arr = "ARRAY[" + ",".join(
+            ":'g%d'" % i for i in range(len(gates_passed))) + "]"
+        for i, g in enumerate(gates_passed):
+            params["g%d" % i] = g
+    else:
+        arr = "ARRAY[]::text[]"  # fixed literal; empty list has no values to bind
     sql = ("INSERT INTO public.dispatch_receipts(task_id, contract_hash, gates_passed) "
-           "VALUES ('%s','%s',ARRAY[%s]) ON CONFLICT (task_id, contract_hash) DO NOTHING;"
-           % (sql_esc(task_id), sql_esc(contract_hash),
-              ",".join("'%s'" % sql_esc(g) for g in gates_passed)))
-    psql(sql)
+           "VALUES (:'tid',:'ch',%s) ON CONFLICT (task_id, contract_hash) DO NOTHING;" % arr)
+    psql(sql, params)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -520,10 +539,13 @@ class Handler(BaseHTTPRequestHandler):
         receipts = []
         for kind, rh in (("memory", rh_mem), ("kb", rh_kb)):
             sig = receipt_sig(seat, slug, kind, qh, rh, ts_str)
-            sql = ("INSERT INTO public.receipts(seat,kind,slug,query_hash,result_hash,ts,sig) "
-                   f"VALUES ('{sql_esc(seat)}','{kind}','{sql_esc(slug)}','{qh}','{rh}',"
-                   f"'{ts_str}'::timestamptz,'{sig}') RETURNING id;")
-            rid = psql(sql).strip().split("\n")[0]
+            rid = psql(
+                "INSERT INTO public.receipts(seat,kind,slug,query_hash,result_hash,ts,sig) "
+                "VALUES (:'seat',:'kind',:'slug',:'qh',:'rh',"
+                ":'ts'::timestamptz,:'sig') RETURNING id;",
+                {"seat": seat, "kind": kind, "slug": slug, "qh": qh, "rh": rh,
+                 "ts": ts_str, "sig": sig},
+            ).strip().split("\n")[0]
             receipts.append({"kind": kind, "receipt_id": rid})
         partial = kb_partial or mem_partial
         log("SEARCH", seat, slug, "query_hash=", qh[:12], "receipts=", len(receipts), "partial=", partial)
@@ -549,9 +571,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send(403, {"ok": False, "error": "chairman_token rejected"}); return
         ts_str = now_ts()
         sig = plan_sig(task_slug, ts_str)
-        sql = ("INSERT INTO public.plan_approvals(task_slug,approved_by,ts,sig) "
-               f"VALUES ('{sql_esc(task_slug)}','chairman','{ts_str}'::timestamptz,'{sig}') RETURNING plan_id;")
-        plan_id = psql(sql).strip().split("\n")[0]
+        plan_id = psql(
+            "INSERT INTO public.plan_approvals(task_slug,approved_by,ts,sig) "
+            "VALUES (:'slug','chairman',:'ts'::timestamptz,:'sig') RETURNING plan_id;",
+            {"slug": task_slug, "ts": ts_str, "sig": sig},
+        ).strip().split("\n")[0]
         log("APPROVED", task_slug, "plan_id=", plan_id)
         self._send(200, {"ok": True, "plan_id": plan_id, "task_slug": task_slug, "ts": ts_str})
 
@@ -642,20 +666,25 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"ok": False, "error": "bad needs_chairman"}); return
         try:
             for kb in kb_ids:
-                row = psql("SELECT 1 FROM public.kb_index WHERE file_id='%s';" % sql_esc(kb)).strip()
+                row = psql("SELECT 1 FROM public.kb_index WHERE file_id=:'kb';",
+                           {"kb": kb}).strip()
                 if not row:
                     self._send(403, {"ok": False, "error": "kb_id not in knowledge base: %s" % kb}); return
             row = psql(
-                "SELECT 1 FROM public.receipts WHERE seat='%s' AND kind='kb' AND slug='%s' "
-                "AND ts > now() - interval '24 hours';" % (sql_esc(seat), sql_esc(slug))).strip()
+                "SELECT 1 FROM public.receipts WHERE seat=:'seat' AND kind='kb' AND slug=:'slug' "
+                "AND ts > now() - :'ttl'::interval;",
+                {"seat": seat, "slug": slug, "ttl": "24 hours"}).strip()
             if not row:
                 self._send(403, {"ok": False, "error": "no kb receipt for seat+slug in 24h"}); return
-            arr = "ARRAY[" + ",".join("'%s'" % sql_esc(k) for k in kb_ids) + "]"
+            params = {"seat": seat, "slug": slug, "text": text.strip(),
+                      "nc": "true" if needs_chairman else "false"}
+            arr = "ARRAY[" + ",".join(":'kb%d'" % i for i in range(len(kb_ids))) + "]"
+            for i, k in enumerate(kb_ids):
+                params["kb%d" % i] = k
             did = psql(
                 "INSERT INTO public.decisions(seat, slug, text, kb_ids, needs_chairman) "
-                "VALUES ('%s','%s','%s',%s,%s) RETURNING id;"
-                % (sql_esc(seat), sql_esc(slug), sql_esc(text.strip()), arr,
-                   "true" if needs_chairman else "false")).strip().split("\n")[0]
+                "VALUES (:'seat',:'slug',:'text',%s,:'nc'::boolean) RETURNING id;" % arr,
+                params).strip().split("\n")[0]
         except Exception as e:
             self._send(500, {"ok": False, "error": "decision write failed: %s" % str(e)[:200]}); return
         log("DECISION", seat, slug, "id=", did)

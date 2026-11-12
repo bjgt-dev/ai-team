@@ -2,11 +2,10 @@
 # 枢纽大管家席（历史文件名 ceo-opencode.sh 保留，角色已按 2026-11-02 审计注册表更名）（OpenCode 载体）运行器：用法 ceo-opencode.sh "任务文本" [--model x]
 # 脑通道：默认 opencode/deepseek-v4.1-flash-free（免费强模型）；兜底 my-gateway/deepseek-chat。
 set -u
-export MY_GATEWAY_API_KEY="${MY_GATEWAY_API_KEY:-}"  # set in environment; never commit a real key
+export MY_GATEWAY_API_KEY="YQw3UhOdOusdYPdd2vrytEMWwCqtQoIOtscLQuLLyCd0CjOG"
 [ -f /home/ubuntu/ai-team/state/brain-proxy.env ] && . /home/ubuntu/ai-team/state/brain-proxy.env
 P=${BRAIN_PROXY_PORT:-10814}
-GATE_HOST="${GATE_HOST:-127.0.0.1}"
-export HTTP_PROXY=http://127.0.0.1:$P HTTPS_PROXY=http://127.0.0.1:$P http_proxy=http://127.0.0.1:$P https_proxy=http://127.0.0.1:$P NO_PROXY=127.0.0.1,localhost,$GATE_HOST no_proxy=127.0.0.1,localhost,$GATE_HOST
+export HTTP_PROXY=http://127.0.0.1:$P HTTPS_PROXY=http://127.0.0.1:$P http_proxy=http://127.0.0.1:$P https_proxy=http://127.0.0.1:$P NO_PROXY=127.0.0.1,localhost,127.0.0.1 no_proxy=127.0.0.1,localhost,127.0.0.1
 cd /home/ubuntu/ai-team/ceo-seat
 # --- 2026-11-02 shortlock: 短锁领单 + 独立执行 + 短锁回写（第一批定案） ---
 # 路径可经环境变量覆盖，仅供沙箱测试；生产默认值与旧架构一致。

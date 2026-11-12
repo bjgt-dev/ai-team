@@ -132,7 +132,7 @@ def main():
     ok, rc, out = run([py, os.path.join(S, "dename-lint.py"), good_doc], 0)
     check("dename-lint 正例脱名通过", ok, "rc=%d" % rc)
     bad_doc = os.path.join(T, "doc-bad.md")
-    w(bad_doc, "董事长确认后执行。\n")
+    w(bad_doc, "测试姓名确认后执行。\n")
     ok, rc, out = run([py, os.path.join(S, "dename-lint.py"), bad_doc], 1)
     check("dename-lint 反例真实姓名命中", ok and "真实姓名" in out, "rc=%d" % rc)
 

@@ -27,7 +27,7 @@ BASE = os.path.expanduser("~/ai-team")
 STATE = os.path.join(BASE, "state")
 OUTBOX = os.path.join(STATE, "outbox")
 LOG = os.path.join(STATE, "logs", "observe.log")
-GATE_URL = os.environ.get("GATE_SVC_URL", "http://127.0.0.1:8093") + "/health"
+GATE_URL = "http://127.0.0.1:8093/health"
 
 
 def dsn():

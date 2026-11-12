@@ -26,7 +26,7 @@ fi
 fi
 esc() { printf "%s" "$1" | sed "s/'/''/g"; }
 set -a; . "$ENV_FILE"; set +a
-export PGPASSWORD="${PGPASSWORD:-}"  # supplied via ENV_FILE; never hardcode a password here
+export PGPASSWORD="$DB_PASSWORD"
 PSQL="psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -v ON_ERROR_STOP=1 -q -t -A"
 if [ "$MARK_ONLY" -eq 0 ]; then
 $PSQL -c "INSERT INTO public.canary_ledger(seat,gate,expected,actual,ok,provenance) VALUES('auditor','$(esc "$GATE")','$(esc "$EXPECTED")','$(esc "$ACTUAL")','$OK','auditor');"

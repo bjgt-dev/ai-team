@@ -16,7 +16,7 @@
 - 调度席 → 总调度 OpenClaw（派单、编排；不做业务定案）
 - CEO 席 / CEO → 历史称谓，现行架构无此职；脚本文件名 ceo-opencode.sh、目录 ceo-seat/ 为历史命名，不等于当前角色定义
 - 通道席 → 历史称谓，现行幕僚长不是转发通道
-- arm-hub → 历史名称；现行枢纽物理机为 arm-agent（Tailscale <tailnet-ip>），不得与 arm-agent 并列计为两台机器
+- arm-hub → 历史名称；现行枢纽物理机为 arm-agent（Tailscale 127.0.0.1），不得与 arm-agent 并列计为两台机器
 - 执行节点人名（光头 / Noesis）→ Worker 逻辑主体的账号/人员注记，不是角色名；角色名统一为 Worker
 
 ## Worker 注册（2026-11-02 13:44 InstaBox API 只读实测）
@@ -38,3 +38,17 @@
 ## 模型网关与真源（2026-11-07 补，非角色）
 - 模型网关 newapi：模型接入层（OpenClaw gateway + newapi），管渠道、额度、金丝雀；不是角色，不派单、不定案。见 docs/architecture/domain-concepts-20261107.md 概念 8。
 - 真源 twt-core-backup：枢纽 /home/ubuntu/ai-team/state/twt-core-backup/，本席核心状态备份；不是角色、不是机器。
+
+## 角色分层检查（2026-11-11 机制，董事长令“犯错要落实到机制”）
+
+三层：L1 决策（前台：董事长、幕僚长）/ L2 控制（中台：大管家、总调度、Supervisor、独立评审）/ L3 执行（Worker，拉取式认领，按活儿分工）。
+提议新角色或给角色派活之前，必须先跑角色分层检查：
+
+```
+python3 /home/ubuntu/ai-team/scripts/role-layer-check.py --name <拟议名> --layer <1|2|3|决策|控制|执行> --function <一句话职能> [--chairman-authorized]
+```
+
+- 执行分工（写内容、写代码、做设计、跑数据……）只能是 Worker（L3），不许挂成管理角色（L1/L2）。
+- 新正式角色进 L1/L2 须董事长授权（表头禁令），无授权不许新增、改名、合并。
+- 教训：2026-11-11 23:30 本席把“内容经理”说成“挂在幕僚长下属”的管理角色，董事长纠正“内容经理是 worker”。
+- 验收测试：scripts/test-mechanisms.sh（M2-1 至 M2-5 用例）。

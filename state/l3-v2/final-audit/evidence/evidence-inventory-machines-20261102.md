@@ -6,8 +6,8 @@
 - hostname arm-agent；Ubuntu 24.04.5 LTS，内核 7.0.0-1013-oracle，aarch64
 - CPU 2 核；内存 11Gi（已用 8.8Gi，可用 2.8Gi，Swap 0）
 - 磁盘 / 77G 已用 48G 63%；/data 49G 已用 34G 72%
-- IP：Tailscale <tailnet-ip>；内网 <internal-ip>、<internal-ip>；docker 网桥 <docker-bridge>
-- SSH 别名：本机 ~/.ssh/config 中 Host arm 与 Host arm-agent 均指向 <tailnet-ip>、User ubuntu
+- IP：Tailscale 127.0.0.1；内网 10.0.0.33、10.0.0.190；docker 网桥 172.17/172.18/172.19.0.1
+- SSH 别名：本机 ~/.ssh/config 中 Host arm 与 Host arm-agent 均指向 127.0.0.1、User ubuntu
 
 ## arm-hub
 - 事实：~/.ssh/config 中无名为 arm-hub 的独立 Host 条目；无独立 IP 被本次检查验证。

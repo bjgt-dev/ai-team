@@ -298,7 +298,7 @@ def _fail_class(reason):
 
 def _stamp_event(cur, task_id, new_status, fclass, reason):
     cur.execute(
-        "UPDATE central_events SET payload = jsonb_build_object('failure_class', %s, 'reason', %s)"
+        "UPDATE central_events SET payload = jsonb_build_object('failure_class', %s::text, 'reason', %s::text)"
         " WHERE event_id = (SELECT event_id FROM central_events"
         " WHERE task_id=%s AND new_status=%s AND payload='{}'::jsonb"
         " ORDER BY created_at DESC LIMIT 1)",
@@ -596,7 +596,13 @@ class H(BaseHTTPRequestHandler):
                     # reason (pull_once sends it; absent for old clients).
                     _freason = str(body.get("reason") or "unknown")[:200]
                     _rdetail = _freason + (" workdir=" + r[3] if r[3] else "")
-                    _stamp_event(cur, tid, nxt, _fail_class(_freason), _rdetail)
+                    # Harden 2026-11-12: _stamp_event is best-effort. A stamp
+                    # failure must not roll back the whole fail transaction
+                    # (that is what made every /v1/fail drop 2026-11-10/11).
+                    try:
+                        _stamp_event(cur, tid, nxt, _fail_class(_freason), _rdetail)
+                    except Exception as _se:
+                        print("queue_api: _stamp_event best-effort failed task=%s err=%s" % (tid, _se), flush=True)
                     conn.commit()
                     _audit(worker, "fail", tid, nxt)
                     self._send(200, {"ok": True, "state": nxt})

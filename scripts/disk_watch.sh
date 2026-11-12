@@ -15,12 +15,11 @@ check_local() {
   fi
 }
 
-# AMD_HOST: Tailscale IP or hostname of the second node; set AMD_HOST to override.
 check_amd() {
   # hub -> amd-proxy via tailscale userspace proxy (see TOOLS.md); best effort
   PCT="$(ssh -o ConnectTimeout=10 -o BatchMode=yes \
     -o ProxyCommand="/var/lib/ocarun/tailscale-bin/tailscale --socket=/tmp/tailscaled-direct.sock nc %h %p" \
-    ubuntu@${AMD_HOST:-amd-proxy} "df / | tail -1 | awk '{print \$5}' | tr -d %" 2>/dev/null)"
+    ubuntu@<tailnet-ip> "df / | tail -1 | awk '{print \$5}' | tr -d %" 2>/dev/null)"
   [ -z "$PCT" ] && { echo "$NOW DISK_CHECK_FAIL disk=amd unreachable" >> "$B/state/alerts.log"; return 0; }
   if [ "$PCT" -ge 85 ]; then
     echo "$NOW DISK_ALERT disk=amd:/ usage=${PCT}% threshold=85%" >> "$B/state/alerts.log"

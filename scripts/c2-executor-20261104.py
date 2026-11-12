@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """C2 W1精简版 executor (2026-11-04, 令12实施).
-只处理新任务, 白名单 payload.type in (llm_doc, script, patrol, timer) + code 且 workdir 非空, 不碰 QUARANTINED.
+只处理新任务, 白名单 payload.type in (llm_doc, script, patrol, timer) + code 且 workdir 非空, 不碰 QUARANTINED. llm_doc 只认领 payload.content 已生成(>=10 字节)的任务, 生成式(无 content)不认领(2026-11-12 guard, 防 resume-rework 式确定性失败).
     code 类型: 枢纽不执行代码、不调模型, 只做 defer/路由: 校验 workdir 非空后释放租约、状态回 READY, 由 worker-1 经 queue_api/pull_once 执行 (l3-20261105-1a).
 流程: READY -> DISPATCHING -> CLAIMED (lease fencing+1, LEASE_SECONDS from cq_common)
       -> RUNNING -> VERIFYING (artifact_sha/bytes 写入, verified_by 留空给 verifier)
@@ -83,10 +83,14 @@ def main():
     with psycopg.connect(dsn) as conn:
         with conn.cursor() as cur:
             cur.execute("""
+                -- 2026-11-12 llm_doc-content-guard (resume-rework 3x 'content too short'):
+                -- c2-executor does NOT generate; it only writes pre-generated payload.content.
+                -- Generative llm_doc tasks (structured input, no content) must NOT be claimed here,
+                -- or they fail deterministically on every retry. Claim llm_doc only when content exists.
                 SELECT task_id, payload, current_fencing_token, min_bytes, retry_count FROM central_tasks
                 WHERE status = 'READY'
                   AND retry_count < COALESCE(max_retries, 3)
-                  AND ((payload->>'type' IN ('llm_doc', 'script', 'patrol', 'timer')) OR (payload->>'type' = 'code' AND payload->>'workdir' IS NOT NULL AND payload->>'workdir' <> ''))
+                  AND (((payload->>'type' = 'llm_doc' AND payload->>'content' IS NOT NULL AND length(payload->>'content') >= 10)) OR (payload->>'type' IN ('script', 'patrol', 'timer')) OR (payload->>'type' = 'code' AND payload->>'workdir' IS NOT NULL AND payload->>'workdir' <> ''))
                   AND NOT EXISTS (SELECT 1 FROM central_leases l WHERE l.task_id = central_tasks.task_id AND l.status = 'ACTIVE')
                 ORDER BY CASE lane WHEN 'P0' THEN 0 WHEN 'biz' THEN 1 WHEN 'infra' THEN 2 ELSE 9 END, created_at
                 LIMIT 1 FOR UPDATE SKIP LOCKED""")

@@ -70,7 +70,7 @@ def main():
                 os._exit(125)
             os.close(r2)
             # --- self-check: network must be unreachable (kernel) ---
-            for host, port in (("8.8.8.8", 53), ("127.0.0.1", 9), (os.environ.get("GATE_BIND_HOST", "127.0.0.1"), 8093)):
+            for host, port in (("8.8.8.8", 53), ("127.0.0.1", 9), ("127.0.0.1", 8093)):
                 try:
                     socket.create_connection((host, port), timeout=2)
                     raise RuntimeError("selfcheck: connect to %s:%d SUCCEEDED" % (host, port))

@@ -56,7 +56,7 @@ urllib.request.urlopen(req)  # 200
 
 ### 问题
 
-Android 单 VPN 槽位限制：Tailscale 和 karing（或其他代理 App）互斥，开一个挤掉另一个。用户手机主力用 karing，导致 `http://<hub-ip>:8090` 打不开。
+Android 单 VPN 槽位限制：Tailscale 和 karing（或其他代理 App）互斥，开一个挤掉另一个。用户手机主力用 karing，导致 `http://127.0.0.1:8090` 打不开。
 
 ### 解法 A：面板公网化（推荐）
 
@@ -92,7 +92,7 @@ Restart=always
   "route": {
     "rules": [
       {
-        "ip_cidr": ["<hub-ip>/10"],
+        "ip_cidr": ["100.64.0.0/10"],
         "outbound": "direct"
       }
     ]
@@ -100,7 +100,7 @@ Restart=always
 }
 ```
 
-让 `<hub-ip>/10`（Tailscale CGNAT 段）直连，不走代理。但 Android 上 Tailscale 和 karing 不能同时开，此法仅适用于桌面端。
+让 `100.64.0.0/10`（Tailscale CGNAT 段）直连，不走代理。但 Android 上 Tailscale 和 karing 不能同时开，此法仅适用于桌面端。
 
 ### 选型建议
 
@@ -129,7 +129,7 @@ gpt-oss-120b (ch3, pri 20) → agnes-3.0-flash (ch7, pri 15) → glm-4-flash (ch
 ssh -o BatchMode=yes -o StrictHostKeyChecking=no \
   -o ProxyCommand='/home/hatch/.ssh/ts-proxy.sh %h %p' \
   -i /home/hatch/.ssh/id_ed25519 \
-  ubuntu@<hub-ip>
+  ubuntu@127.0.0.1
 ```
 
 **注意**：本机经 `hatch-egress-proxy:3130` 出站（不是 3128），ts-proxy.sh 用 socat PROXY CONNECT。

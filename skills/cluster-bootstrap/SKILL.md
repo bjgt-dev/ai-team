@@ -25,7 +25,7 @@ description: 集群自举与多账号轮值：三台 Muse VM（TWT/Noesis/光头
 
 ## 避坑警告
 - Cue 教训：沙箱掉线后 SSH 端口焊死、无远程抢救手段——资产必须外置（枢纽 + GitHub + 每日加密异地备份），机器死了换一台 5 分钟接管，永不抢救尸体。
-- 认错机器：<node-ip> 是董事长自己的 amd-proxy 网络节点，不是工人机；连任何"新 IP"前先查 state/ 档案确认身份。
+- 认错机器：<tailnet-ip> 是董事长自己的 amd-proxy 网络节点，不是工人机；连任何"新 IP"前先查 state/ 档案确认身份。
 - VM 重置会丢 /root/.ssh/config（已复发 9 次）：SSH 突然 kex reset 或横幅 "Outbound SSH is turned off"，先重建该文件（Include /home/hatch/.ssh/config），不是策略变更。
 - 工人凭据"可重发"必须实测：bootstrap 声称枢纽可重发 muse_ingest/newapi.key，但 2026-10-20 实查枢纽上两件都不存在，已现场生成装入 worker-kit 并实测（ingest 登录 OK、newapi /v1/models 200）。口号不算数，发放点必须有真文件。
 

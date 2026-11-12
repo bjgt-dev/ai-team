@@ -202,6 +202,30 @@ def ensure_plan(item):
 FORMAL_DIR = os.path.join(BASE, "state", "pipeline-formal-20261106")
 
 
+def sync_plan_id(item, contract_path):
+    """董事长批准后，把合同里的 plan_id 占位串换成真 UUID（否则门禁永拒）。
+    无批准行时不动合同。返回 (changed, detail)。"""
+    slug = item["slug"]
+    ok, detail = check_plan_approval(slug)
+    if not ok:
+        return False, "no approval yet"
+    plan_id = detail.split("=", 1)[1].strip() if "=" in detail else ""
+    try:
+        contract = json.load(open(contract_path, encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return False, "contract unreadable: %s" % exc
+    if contract.get("plan_id") == plan_id:
+        return False, "plan_id already %s" % plan_id
+    contract["plan_id"] = plan_id
+    contract["plan_note"] = "plan approved by chairman (plan_approvals %s); auto-synced by internal-iteration-enqueue.py." % plan_id
+    with open(contract_path, "w", encoding="utf-8") as fh:
+        json.dump(contract, fh, ensure_ascii=False, indent=2)
+    formal_path = os.path.join(FORMAL_DIR, "%s-contract.json" % slug)
+    with open(formal_path, "w", encoding="utf-8") as fh:
+        json.dump(contract, fh, ensure_ascii=False, indent=2)
+    return True, "plan_id synced to %s" % plan_id
+
+
 def ensure_contract(item):
     slug = item["slug"]
     path = os.path.join(ITEM_DIR, "%s-contract.json" % slug)
@@ -372,6 +396,9 @@ def main():
         slug = item["slug"]
         plan_path, plan_new = ensure_plan(item)
         contract_path, contract_new, _c = ensure_contract(item)
+        changed, sync_detail = sync_plan_id(item, contract_path)
+        if changed:
+            print("  plan_id synced: %s" % sync_detail)
         print("%s: plan=%s%s contract=%s%s" % (
             slug, plan_path, " (new)" if plan_new else "",
             contract_path, " (new/updated)" if contract_new else ""))

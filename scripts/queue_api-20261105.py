@@ -121,17 +121,21 @@ except Exception:
 RATE_PER_MIN = 30
 PORT = 12700
 # Claim predicate (2026-11-06 fix, W2/W3c evidence; cutover51 W2.4 note):
-# ONLY the types worker-1's pull_once can execute (code with non-empty
-# workdir, script). llm_doc/timer/patrol are hub-executor types claimed by
-# the hub c2-executor directly from Postgres (hub-local execution; it never
-# uses /v1/claim because queue_api auth is a single worker-1 token and
-# there is no hub-executor token/identity yet — moving c2-executor onto
-# /v1/claim needs that token first; tracked as cutover51 remaining work,
-# NOT silently re-described as done). Worker-1 has no direct-DB claim path:
-# the only claim entry for worker-1 is /v1/claim.
+# Types a worker's pull_once can execute via /v1/claim (2026-11-13 hub-exec
+# fix): code with non-empty workdir, script, AND llm_doc with PRE-GENERATED
+# content (>=10 bytes). Generative llm_doc (no/short content) is NOT
+# claimable here — pull_once has no model access, so it must never claim
+# one (it would fail it). Generative llm_doc stays with the hub
+# gen-llm-doc-worker until workers get gateway access (chairman decision
+# pending, see hub-exec-fix-20261113.md). timer/patrol are hub monitoring
+# types claimed by the hub c2-executor directly from Postgres. Workers
+# have no direct-DB claim path: the only claim entry for workers is
+# /v1/claim.
 CLAIM_WHERE = """(payload->>'type' = 'script')
                   OR (payload->>'type' = 'code' AND payload->>'workdir' IS NOT NULL
-                      AND payload->>'workdir' <> '')"""
+                      AND payload->>'workdir' <> '')
+                  OR (payload->>'type' = 'llm_doc' AND payload->>'content' IS NOT NULL
+                      AND length(payload->>'content') >= 10)"""
 _UUID_RE = re.compile(r"^[0-9a-fA-F-]{36}$")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -515,10 +519,24 @@ class H(BaseHTTPRequestHandler):
                     if body.get("lease_epoch") is not None and body.get("lease_epoch") != tok:
                         self._send(409, {"error": "epoch_mismatch"})
                         return
-                    apath = os.path.join(QUARANTINE_DIR, str(tid) + ".bin")
+                    # 2026-11-13 submit-fix: _artifact writes llm_doc as
+                    # <task_id>.md (hub-exec fix) but submit hardcoded .bin,
+                    # so every llm_doc submit 409'd artifact_missing (a2 +
+                    # hw-n0, 2026-11-13). Match the extension to the task
+                    # type, with fallback to the other extension.
+                    cur.execute("SELECT payload->>'type' FROM central_tasks WHERE task_id=%s", (tid,))
+                    _trow = cur.fetchone()
+                    _ttype = _trow[0] if _trow else None
+                    _ext = ".md" if _ttype == "llm_doc" else ".bin"
+                    apath = os.path.join(QUARANTINE_DIR, str(tid) + _ext)
                     if not os.path.exists(apath):
-                        self._send(409, {"error": "artifact_missing"})
-                        return
+                        _alt = ".bin" if _ext == ".md" else ".md"
+                        _altpath = os.path.join(QUARANTINE_DIR, str(tid) + _alt)
+                        if os.path.exists(_altpath):
+                            apath = _altpath
+                        else:
+                            self._send(409, {"error": "artifact_missing"})
+                            return
                     data = open(apath, "rb").read()
                     # Review hard gate (item 13): code tasks need REVIEW-PASS
                     # (standards + spec) before VERIFYING. Audit mode by
@@ -648,16 +666,23 @@ class H(BaseHTTPRequestHandler):
                 if not cur.fetchone():
                     self._send(409, {"error": "no_active_lease"})
                     return
+                cur.execute("SELECT payload->>'type' FROM central_tasks WHERE task_id=%s", (tid,))
+                _trow = cur.fetchone()
+                _ptype = (_trow[0] if _trow else None)
+        # 2026-11-13 hub-exec fix: the c2-verifier requires llm_doc
+        # deliverables at <task_id>.md (exact name); code uses a glob so
+        # .bin is fine there. Write the extension the verifier expects.
+        _ext = ".md" if _ptype == "llm_doc" else ".bin"
         os.makedirs(QUARANTINE_DIR, exist_ok=True)
-        tmp = os.path.join(QUARANTINE_DIR, str(tid) + ".bin.tmp.%d" % os.getpid())
-        final = os.path.join(QUARANTINE_DIR, str(tid) + ".bin")
+        tmp = os.path.join(QUARANTINE_DIR, str(tid) + _ext + ".tmp.%d" % os.getpid())
+        final = os.path.join(QUARANTINE_DIR, str(tid) + _ext)
         with open(tmp, "wb") as f:
             f.write(data)
         os.replace(tmp, final)
         # Canonical verifier placement: identical bytes, atomic replace.
         os.makedirs(DELIV_DIR, exist_ok=True)
-        _dtmp = os.path.join(DELIV_DIR, str(tid) + ".bin.tmp.%d" % os.getpid())
-        _dfinal = os.path.join(DELIV_DIR, str(tid) + ".bin")
+        _dtmp = os.path.join(DELIV_DIR, str(tid) + _ext + ".tmp.%d" % os.getpid())
+        _dfinal = os.path.join(DELIV_DIR, str(tid) + _ext)
         with open(_dtmp, "wb") as f:
             f.write(data)
         os.replace(_dtmp, _dfinal)

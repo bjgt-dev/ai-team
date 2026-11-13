@@ -793,21 +793,119 @@ def _gate5_code(src_files, data):
 
 def _gate5_llm_echo(payload, data):
     """Gate 5 (llm_doc): deliverable identical to the contract input is an
-    echo, not a deliverable. Returns (verdict, detail)."""
-    inp = None
+    echo, not a deliverable. Returns (verdict, detail).
+    NOTE (2026-11-13 hub-exec fix): compare against the CONTRACT INPUT (the
+    work description), NOT payload["content"]. For pre-generated tasks the
+    deliverable IS the pre-generated content by design, so comparing against
+    it rejects every pre-generated task. The echo to catch is a worker that
+    just copies the task description instead of producing the content."""
+    inp_texts = []
+    def _collect(v, _skip_content=False):
+        if isinstance(v, str):
+            inp_texts.append(v)
+        elif isinstance(v, dict):
+            for k, x in v.items():
+                # 2026-11-13 gate5-fix: skip the "content" key. It holds the
+                # pre-generated content itself; comparing the deliverable
+                # against it rejects every pre-generated task (a2 + hw-n0).
+                # The echo to catch is a worker copying the WORK DESCRIPTION
+                # (input.work), not the pre-generated content.
+                if _skip_content and k == "content":
+                    continue
+                _collect(x, _skip_content)
+        elif isinstance(v, (list, tuple)):
+            for x in v:
+                _collect(x, _skip_content)
     if isinstance(payload, dict):
-        inp = payload.get("content")
-        if inp is None:
-            contract = payload.get("contract")
-            if isinstance(contract, dict):
-                inp = contract.get("input")
-                if isinstance(inp, dict):
-                    inp = inp.get("content")
-    if not isinstance(inp, str) or not inp.strip():
+        _collect(payload.get("input"), _skip_content=True)
+        contract = payload.get("contract")
+        if isinstance(contract, dict):
+            _collect(contract.get("input"), _skip_content=True)
+    texts = [t for t in inp_texts if isinstance(t, str) and t.strip()]
+    if not texts:
         return ("na", "no text input to compare")
-    if _norm_ws(data) == _norm_ws(inp):
-        return ("reject", "llm_doc echo: deliverable equals contract input")
+    norm_data = _norm_ws(data)
+    for t in texts:
+        if norm_data and norm_data == _norm_ws(t):
+            return ("reject", "llm_doc echo: deliverable equals contract input")
     return ("pass", "deliverable differs from input")
+
+
+# Gate 6 (2026-11-13 factory repair): content quality for llm_doc.
+# Tonight's N1 garbage (3,191B, task 55290397) passed gates 1+5 (file
+# exists, non-empty, differs from input) while being a template: a single
+# line with 59 literal \\n escapes, bracket placeholders ([文件路径],
+# [行数], [任务 UUID], ...), 0 real table rows, no JSON copy. The verifier
+# marked it DONE. Gate 6 rejects template/placeholder deliverables so
+# they RETRY instead of DONE. Any one rule trips -> reject:
+#   6a. known placeholder token inside [...] (not a Markdown link).
+#   6b. >=5 non-link bracket groups (template residue).
+#   6c. escaped single-line blob: >=10 literal \\n and <5 real newlines.
+#   6d. assertion-type tasks (output_path/task_id mentions assert/断言):
+#       fewer than 10 Markdown table data rows.
+#   6e. assertion-type tasks: same-name .json copy missing next to .md.
+_PLACEHOLDER_TOKENS = (
+    "文件路径", "JSON 复制路径", "行数", "未核实数量", "任务 UUID",
+    "声明时间", "完成时间", "未填", "待填", "待补充", "xxx", "TBD",
+)
+_ASSERT_ROW_RE = re.compile(
+    r"^(A-[A-Z]+-\d+|K\d+|S\d+|M\d+|M-TOT|STOR-[A-Z]+\d*|STOR-[A-Z]+"
+    r"|O\d+|B\d+|L\d+|C\d+|D\d+)$")
+
+def _gate6_content_quality(payload, data, contract):
+    """Gate 6 (llm_doc): content quality. Returns (verdict, detail)."""
+    try:
+        text = data.decode("utf-8", errors="ignore")
+    except Exception:
+        return ("na", "undecodable deliverable")
+    # 6a. known placeholder tokens.
+    for tok in _PLACEHOLDER_TOKENS:
+        if ("[" + tok + "]") in text:
+            return ("reject", "placeholder token [%s] in deliverable" % tok)
+    # 6b. many non-link bracket groups = template residue.
+    _brackets = [b for b in re.findall(r"\[[^\]\n]{1,30}\](?!\()", text)
+                 if not re.match(r"^\[\d+\]$", b)]
+    if len(_brackets) >= 5:
+        return ("reject", "%d bracket placeholders in deliverable" % len(_brackets))
+    # 6c. escaped single-line blob.
+    if text.count("\\n") >= 10 and text.count("\n") < 5:
+        return ("reject", "deliverable is escaped single-line blob (%d literal \\n, %d real newlines)"
+                % (text.count("\\n"), text.count("\n")))
+    # Assertion-type detection.
+    _op = ""
+    if isinstance(contract, dict):
+        _op = str(contract.get("output_path") or "")
+    _tid = ""
+    if isinstance(payload, dict):
+        _tid = str(payload.get("task_id") or "")
+    _is_assert = ("assert" in _op.lower() or "assert" in _tid.lower()
+                  or "断言" in _op or "断言" in _tid)
+    if not _is_assert:
+        return ("pass", "no placeholder; not an assertion task")
+    # 6d. assertion table data rows.
+    _rows = 0
+    for line in text.splitlines():
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if not cells:
+            continue
+        first = cells[0]
+        if first in ("ID", "") or set(first) <= set("-: "):
+            continue
+        if _ASSERT_ROW_RE.match(first):
+            _rows += 1
+    if _rows < 10:
+        return ("reject", "assertion table has %d data rows (<10)" % _rows)
+    # 6e. same-name JSON copy next to the .md output.
+    if _op:
+        _md = _abs_hub_path(_op.strip())
+        if _md.lower().endswith(".md"):
+            _js = _md[:-3] + ".json"
+            if not os.path.exists(_js):
+                return ("reject", "assertion JSON copy missing: %s" % _js)
+    return ("pass", "no placeholder; %d assertion rows; JSON copy present" % _rows)
 
 def get_dsn():
     if not os.access(DSN_FILE, os.R_OK):
@@ -888,6 +986,11 @@ def main():
                                 gates["5"] = g5
                                 if g5[0] == "reject":
                                     ok = False; reason = "gate5: " + g5[1]
+                            if ok:
+                                g6 = _gate6_content_quality(payload, data, _cd)
+                                gates["6"] = g6
+                                if g6[0] == "reject":
+                                    ok = False; reason = "gate6: " + g6[1]
                 elif payload.get("type") == "patrol":
                     import time as _t2
                     path = "/home/ubuntu/ai-team/ceo-seat/out/patrol-latest.md"

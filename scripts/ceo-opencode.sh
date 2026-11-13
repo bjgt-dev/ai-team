@@ -202,6 +202,7 @@ run_once() {
   fi
 }
 if [ -n "$MODEL" ]; then
+  echo "$(date '+%F %T') brain=$MODEL" >> /home/ubuntu/ai-team/state/brain-active.log
   timeout 600 opencode "${ARGS[@]}" "$TASK" </dev/null > "$MODEL_OUT" 2>&1
 else
   # 2026-10-30对齐修正：席位走opencode run，可用模型只能取opencode provider配置（动态读配置，不写死）；
@@ -215,6 +216,7 @@ for _zp in 10815 10801 10803 10812 10814 10802 10804 10810 10813; do
   if [ -z "$CHOSEN" ] && (cd /tmp && env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy timeout 45 opencode run --model "opencode/deepseek-v4.1-flash-free" "只回：收到" </dev/null 2>/dev/null | grep -q "收到"); then CHOSEN="opencode/deepseek-v4.1-flash-free"; ZEN_PROXY_PORT="direct"; fi
   # 2026-11-07 BUTLER-FIX: muse-reverse/muse 是远端会话，无枢纽文件访问权限，选它只会出 yanzi 空答（2026-11-07 06:12-08:09 连 14 轮）；大管家必须用本地带文件工具的模型，Zen 死时直接落网关，不经过 muse-reverse。
   for _mid in $ROUTE_MODELS; do
+    [ "$_mid" = "free-auto" ] && continue  # 2026-11-13 free-auto 心跳通但实活空答，跳过
     [ -n "$CHOSEN" ] && break
     _cand="my-gateway/$_mid"
     if (cd /tmp && timeout 45 opencode run --model "$_cand" "只回：收到" </dev/null 2>/dev/null | grep -q "收到"); then CHOSEN="$_cand"; break; fi
@@ -228,6 +230,7 @@ for _zp in 10815 10801 10803 10812 10814 10802 10804 10810 10813; do
     _ok=0
     # 2026-11-07 BUTLER-FIX: 不重试 muse-reverse（远端会话，无文件权限，必出 yanzi 空答）
     for _mid in $ROUTE_MODELS; do
+      [ "$_mid" = "free-auto" ] && continue  # 2026-11-13 free-auto 心跳通但实活空答，跳过
       _cand="my-gateway/$_mid"
       [ "$_cand" = "$CHOSEN" ] && continue
       if run_once "$_cand"; then _ok=1; CHOSEN="$_cand"; break; fi

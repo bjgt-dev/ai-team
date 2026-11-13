@@ -120,6 +120,21 @@ def main():
         _audit({"ts": _ts(), "contract_file": cpath, "task_id": str(task_id)[:80],
                 "gate": "not_run", "result": "refused_no_task_id"})
         return 1
+    # 2026-11-13 factory repair: generative llm_doc must not carry a long
+    # input.content. content >= 10 chars classifies the task as PRE-GENERATED
+    # (queue_api/c2-executor claim it; pull_once writes content verbatim and
+    # never writes output_path). Tonight's N1 attempt 1 stuffed a 374-char
+    # description into content and was quarantined 3x. A contract that really
+    # is pre-generated must declare "pre_generated": true; anything else with
+    # content >= 10 chars is refused so the author removes it or marks it.
+    _ttype0 = contract.get("task_type")
+    _inp0 = contract.get("input") if isinstance(contract.get("input"), dict) else {}
+    _content0 = _inp0.get("content")
+    if _ttype0 == "llm_doc" and isinstance(_content0, str) and len(_content0) >= 10 and not contract.get("pre_generated"):
+        print("DISPATCH REFUSED: llm_doc %s has input.content %d chars but no pre_generated:true; generative tasks must not carry content (it misclassifies as pre-generated and output_path is never written). Remove content or set pre_generated:true." % (task_id, len(_content0)))
+        _audit({"ts": _ts(), "contract_file": cpath, "task_id": task_id,
+                "gate": "not_run", "result": "refused_llm_content", "content_chars": len(_content0)})
+        return 1
     # Cutover51 W2.2: GATE-DISABLED is no longer a bypass. Its presence is a
     # kill-switch alarm condition: refuse the dispatch (fail closed) and let
     # the kill-switch monitor (gate-wiring-audit.py) pick it up from the audit log.
@@ -263,7 +278,12 @@ def main():
                                     "gate": gate_mode, "result": "refused_workdir_conflict",
                                     "workdir": _wd, "conflict_task": _conflict[0], "conflict_status": _conflict[1]})
                             return 2
-                cur.execute("SELECT task_id, status FROM central_tasks WHERE payload->>'task_id' = %s", (task_id,))
+                # 2026-11-13 factory repair: duplicate check skips terminal
+                # rows (DONE/QUARANTINED). A terminal row must never block a
+                # re-dispatch of the same task_id (N1 attempt 1 QUARANTINED
+                # forced a payload task_id rename to re-dispatch). Only a live
+                # row (READY/CLAIMED/VERIFYING/RETRY_WAIT) blocks.
+                cur.execute("SELECT task_id, status FROM central_tasks WHERE payload->>'task_id' = %s AND status NOT IN ('DONE','QUARANTINED') ORDER BY created_at DESC LIMIT 1", (task_id,))
                 dup = cur.fetchone()
                 if dup:
                     print("DISPATCH REFUSED: duplicate task_id %s already in central_tasks as %s status=%s" % (task_id, dup[0], dup[1]))

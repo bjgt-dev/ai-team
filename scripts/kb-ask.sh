@@ -38,3 +38,9 @@ for t in terms:
 if not seen:
     print('grep 无结果')
 \" 2>&1"
+RC=$?
+# 证据（2026-11-13 root-gate）：查库行为记入 check-ledger，只记时间+问题哈希，不记问题内容；只追加，写失败不影响主流程与退出码。台账位置按脚本自身位置定（枢纽脚本→枢纽 state，本地脚本→本地 tools），不靠目录存在性判断。
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+case "$_SCRIPT_DIR" in *ai-team*) _LED="/home/ubuntu/ai-team/state/check-ledger.jsonl";; *) _LED="$HOME/workspace/tools/check-ledger.jsonl";; esac
+{ printf '{"ts":"%s","tool":"kb-ask","qhash":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(printf '%s' "$Q" | md5sum | cut -d' ' -f1)" >> "$_LED"; } 2>/dev/null || true
+exit $RC

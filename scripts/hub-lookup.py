@@ -96,4 +96,14 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    _rc = main()
+    # 证据（2026-11-13 root-gate）：存在性核查行为记入 check-ledger，只记时间+问题哈希，不记问题内容；只追加，写失败不影响主流程与退出码。
+    try:
+        import hashlib as _hl, json as _js, datetime as _dt
+        _h = _hl.md5(sys.argv[1].encode("utf-8")).hexdigest() if len(sys.argv) > 1 else ""
+        _led = "/home/ubuntu/ai-team/state/check-ledger.jsonl" if "ai-team" in os.path.dirname(os.path.abspath(__file__)) else os.path.expanduser("~/workspace/tools/check-ledger.jsonl")
+        with open(_led, "a", encoding="utf-8") as _f:
+            _f.write(_js.dumps({"ts": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "tool": "hub-lookup", "qhash": _h}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+    sys.exit(_rc)

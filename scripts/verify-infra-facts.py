@@ -111,4 +111,19 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    _rc = main()
+    # 证据（2026-11-13 root-gate）：核实行为记入 check-ledger，只记时间+事实文件哈希，不记内容；只追加，写失败不影响主流程与退出码。
+    try:
+        import hashlib as _hl, json as _js, datetime as _dt
+        _h = ""
+        try:
+            with open(FACTS_FILE, "rb") as _f:
+                _h = _hl.md5(_f.read()).hexdigest()
+        except Exception:
+            pass
+        _led = "/home/ubuntu/ai-team/state/check-ledger.jsonl" if "ai-team" in os.path.dirname(os.path.abspath(__file__)) else os.path.expanduser("~/workspace/tools/check-ledger.jsonl")
+        with open(_led, "a", encoding="utf-8") as _f:
+            _f.write(_js.dumps({"ts": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "tool": "verify-infra-facts", "qhash": _h}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+    sys.exit(_rc)

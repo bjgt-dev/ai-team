@@ -56,12 +56,20 @@ try:
     def _head_ts(sec):
         # 2026-11-07 HEADTS: 节标题自带“日期+时间”时以其为准，避免节内跨日时间
         # （如 00:15 节里的 23:56:59、16:18）被继承为当天时间而反超新节。
+        # 2026-11-13 SLIMHEADTS (inc-20261113-slim-headts-residual 选项 A):
+        # 拒绝把 M-D 简写时间（如“11-09 21:20:02”）当作节标题时间。只有当时间前
+        # 紧邻完整 YYYY-MM-DD 日期（而非 M-D）时，head_ts 才采用该时间；否则
+        # head_ts 取空，交由 _sec_ts 行内解析决定，避免旧节标题里的 M-D 时间
+        # 被补成年份后反超无标题时间的末节。
         head = sec[0]
         dm = re.search(r"(\d{4}-\d{2}-\d{2})", head)
         if not dm:
             return ""
         tm = re.search(r"(\d{2}:\d{2}(?::\d{2})?)", head)
         if not tm:
+            return ""
+        pre = head[: tm.start()]
+        if not re.search(r"\d{4}-\d{2}-\d{2}[\sT]*$", pre):
             return ""
         return dm.group(1) + "T" + tm.group(1)
 

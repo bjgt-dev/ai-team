@@ -19,7 +19,7 @@ while true; do
   timeout 120 python3 /home/ubuntu/ai-team/scripts/butler_redblue.py >> /home/ubuntu/ai-team/logs/butler-loop.log 2>&1 || true
   # 2026-10-30 第一性原理重构：监督者不阻塞等工人——会话脱离后台跑（自带锁防重入），循环只管监督，
   # 会话日志独立文件，循环周期缩到约3分钟；监督频率上去后，死锁看门阈值可从40分钟收紧到10分钟。
-  ( /home/ubuntu/ai-team/scripts/ceo-opencode.sh "$TASK" >> /home/ubuntu/ai-team/logs/butler-session.log 2>&1 & )
+  ( /home/ubuntu/ai-team/scripts/ceo-opencode.sh --model my-gateway/nvidia/nemotron-3-ultra-550b-a55b:free "$TASK" >> /home/ubuntu/ai-team/logs/butler-session.log 2>&1 & )  # 2026-11-13 factory repair + chairman hard rule (no LIGHT for reasoning): 显式指定 nemotron-3-ultra（COMPLEX 550B，当前最强，经 opencode 实测 build+OK；Zen 额度耗尽、gemini 429、qwen3.8-27b 为次选）
   echo $(date '+%F %T') [LOOP] cycle done session-detached >> /home/ubuntu/ai-team/logs/butler-loop.log
   sleep 180
 done

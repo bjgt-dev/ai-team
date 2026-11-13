@@ -1,10 +1,10 @@
 {
   "phase": "supervisor-running",
-  "last_supervisor_run": "2026-11-13T03:30:02.667678+08:00",
+  "last_supervisor_run": "2026-11-14T03:30:02.619656+08:00",
   "queue_tasks": 9,
   "queue_statuses": {
-    "DONE": 8,
-    "PENDING": 1
+    "PENDING": 1,
+    "DONE": 8
   },
   "decision_pending": 4,
   "current_task": "L3-AUTO backlog review (PENDING, next cycle)",

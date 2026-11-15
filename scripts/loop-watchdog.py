@@ -29,6 +29,11 @@ def main():
     except Exception:
         pass
     if log_age < 600 or rev_age < 600:
+        # sys2 2026-11-16: 健康时也打一行心跳, 让日志 mtime 成为
+        # liveness 信号 (此前零输出, 16 天无更新, 死活不可见).
+        print(json.dumps({"loop_watchdog": "ok",
+                          "log_age_s": int(log_age),
+                          "rev_age_s": int(rev_age)}))
         return
     # 物理直连报警：先推红警，再杀进程；pid 未知也不静默返回
     try:

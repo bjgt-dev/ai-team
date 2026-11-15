@@ -29,6 +29,19 @@ DEFAULT_LEDGER = "/home/ubuntu/ai-team/state/preflight-ledger.jsonl"
 MIN_STARS = 1000
 DECISION_WORDS = ("用", "改", "造")
 
+# 四类公开资源（2026-11-15 董事长令，机制）：searched 须四类全有，缺一类即不过。
+# 适用软件、硬件、未来一切项目。关键词为类别锚点，写“不适用”也须带上类别词。
+FOUR_SOURCES = (
+    ("厂商/官方", ("厂商", "官网", "官方", "规格书", "原理图", "datasheet")),
+    ("商家售卖页", ("淘宝", "京东", "卖家", "商家", "售卖", "立创", "lcsc", "商品")),
+    ("公开资料/开源", ("github", "开源", "公开资料", "数据手册", "拆解", "评测")),
+    ("社区最佳实践", ("社区", "论坛", "reddit", "linux do", "最佳实践", "帖子")),
+)
+
+# 资料新鲜度（2026-11-15 董事长令，机制）：found 须注明资料更新时间或版本号。
+_DATE_RE = re.compile(r"20\d\d(?:[-/年]\d{1,2})?(?:[-/月]\d{1,2})?")
+_VERSION_RE = re.compile(r"(?:rev\.?\s*\d|v\d+\.\d|版本\s*\d|第\s*\d+\s*版)", re.IGNORECASE)
+
 
 def _stars_in(text):
     """Return list of star counts found (e.g. '3125★', '42星', '3125 stars')."""
@@ -63,7 +76,33 @@ def validate(task, searched, found, decision, kind="other"):
         errors.append("模型类预检须查 Hugging Face：searched 无 Hugging Face")
     if kind == "other" and ("github" not in low and not has_hf):
         errors.append("预检须写清公开资源地点：searched 无 GitHub/Hugging Face 等来源")
+    # 硬件更严（2026-11-15 董事长令，机制）：硬件涉费用，found 须含价格与现货/可购信息。
+    if kind == "hardware" and found:
+        _flow = found.lower()
+        _price_words = ("¥", "$", "元", "价格", "成本", "报价", "售价")
+        _stock_words = ("现货", "库存", "在售", "有货", "可购", "购买", "下单", "在库")
+        if not any(w in _flow for w in _price_words):
+            errors.append("硬件预检须含价格：found 未注明价格/成本（¥/$/元/价格/报价），硬件涉费用，不得无价开工")
+        if not any(w in _flow for w in _stock_words):
+            errors.append("硬件预检须含现货/可购信息：found 未注明现货/库存/在售（现货/库存/在售/有货），买不到等于没有")
+    # 四类公开资源全查（2026-11-15 机制）：searched 缺任一类即不过。
+    for cat_name, keywords in FOUR_SOURCES:
+        if not any(kw in low for kw in keywords):
+            errors.append("四类公开资源缺失：searched 未查 %s（须含厂商/官方、商家售卖页、公开资料/开源、社区最佳实践四类）" % cat_name)
     if found:
+        # 资料新鲜度（2026-11-15 机制）：found 须注明资料更新时间或版本号。
+        if not _DATE_RE.search(found) and not _VERSION_RE.search(found):
+            errors.append("资料新鲜度缺失：found 须注明资料的更新时间或版本号（如 2026-11-15、Rev 1.10、v3.2.209），只给链接不给时间等于没核实")
+        # 实时性（2026-11-15 机制）：别拿过时的信息。found 里最新的年份须 ≥2025。
+        _years = [int(y) for y in re.findall(r"20\d\d", found)]
+        if _years and max(_years) < 2025:
+            errors.append("资料过时：found 里最新年份为 %d（早于 2025），请用最新资料重新核实" % max(_years))
+        # 讨论热度（2026-11-15 机制）：found 须注明资料是否仍被积极讨论/维护。
+        _heat_words = ("最近", "活跃", "热度", "讨论", "更新", "浏览", "评论",
+                       "stars", "commits", "issues", "forks", "播放", "点赞")
+        _flow = found.lower()
+        if not any(w in _flow for w in _heat_words):
+            errors.append("讨论热度缺失：found 未注明资料的讨论热度/活跃度（最近更新、讨论、星数、浏览等），无法判断资料是否仍被关注")
         stars = _stars_in(found)
         # 星数/下载量实查只对"用/改"决定强制：决定"造"时 found 本就应是"无现成"，
         # 无东西可标星，强制要星数会把 honest 的"造"也拒掉。
@@ -149,7 +188,7 @@ def main():
     p1.add_argument("--searched", required=True)
     p1.add_argument("--found", required=True)
     p1.add_argument("--decision", required=True)
-    p1.add_argument("--kind", choices=["code", "model", "other"], default="other")
+    p1.add_argument("--kind", choices=["code", "model", "hardware", "other"], default="other")
     p2 = sub.add_parser("check")
     p2.add_argument("--task", required=True)
     sub.add_parser("audit")

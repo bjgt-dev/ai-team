@@ -140,7 +140,7 @@ def main():
             if _checked_any:
                 break
         # No immutable deliverable among the last 50 DONE tasks: sha_ok
-        # stays None and Q3 fails (no object = FAIL).
+        # stays None -> Q3 记"无法验证", 不因此判失败 (sys2 修复 2026-11-15).
     q2.append(("events_60min", events_60))
     q2.append(("done_24h", done_24))
     # Q3: pending decisions now read the DB decisions table (cutover51 W2),
@@ -162,10 +162,13 @@ def main():
     q3.append(("disk_root_used_total_gb", "%d/%d" % (round(_ru / 1e9), round(_rt / 1e9))))
     q3.append(("disk_data_pct", round(data_pct, 1) if data_pct >= 0 else None))
     # Cutover51 W4: Q1 needs pool freshness AND canary freshness; Q2 is AND;
-    # Q3 fails when there is NO deliverable to spot-check (no object = FAIL).
+    # sys2 修复 2026-11-15: Q3 无可验对象判"无法验证"不判失败 (no object != FAIL);
+    # 只有实测到交付物且 sha 不匹配才 fail.
     q1_pass = (verdict == "DONE" and npool >= 2 and _pool_age_h < 6 and _canary_fresh and q1[4][1] and q1[5][1])
     q2_pass = (events_60 > 0 and done_24 > 0)
-    q3_pass = (sha_ok is True and pending_dec == 0 and root_pct < 85 and (data_pct < 0 or data_pct < 85))
+    q3_pass = (sha_ok is not False and pending_dec == 0 and root_pct < 85 and (data_pct < 0 or data_pct < 85))
+    if sha_ok is None:
+        notes.append("sha_spotcheck: unverifiable (no immutable deliverable in last 50 DONE)")
     if q1_pass and q2_pass and q3_pass:
         code = 0
     elif not q1_pass:

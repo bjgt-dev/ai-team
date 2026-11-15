@@ -26,6 +26,7 @@ LAST = os.path.join(STATE, "health_3q_last_exit.json")
 LOG = os.path.join(STATE, "logs", "health_3q_reporter.log")
 OUTBOX = os.path.join(STATE, "outbox")
 HEALTH_3Q = os.path.join(BASE, "scripts", "health_3q-20261104.py")
+REPUSH_SEC = 7200  # sys2 修复 2026-11-15: 同一非零 exit 持续 2 小时未报则重报
 
 
 def utc_now():
@@ -40,12 +41,13 @@ def load_last():
         return None
 
 
-def save_last(exit_code, detail):
+def save_last(exit_code, detail, last_alert_ts=None):
     tmp = LAST + ".tmp"
     rec = {"exit_code": exit_code, "ts": utc_now(),
            "q1_usable": detail.get("q1_usable"),
            "q2_working": detail.get("q2_working"),
-           "q3_correct": detail.get("q3_correct")}
+           "q3_correct": detail.get("q3_correct"),
+           "last_alert_ts": last_alert_ts}
     with open(tmp, "w") as f:
         json.dump(rec, f, ensure_ascii=False, indent=1)
     os.replace(tmp, LAST)
@@ -74,20 +76,28 @@ def write_outbox(exit_code, prev_code, detail):
 
 
 def maybe_alert(exit_code, detail):
-    """Compare with last run; write outbox only on exit-code change.
+    """变色即报; 同一非零 exit 持续 2 小时未报则重报 (sys2 修复 2026-11-15).
 
     Returns (alerted: bool, prev_code). First run + exit 0 -> silent baseline.
     """
-    last = load_last()
-    prev_code = last.get("exit_code") if isinstance(last, dict) else None
+    import time as _time
+    last = load_last() or {}
+    prev_code = last.get("exit_code")
+    prev_alert = last.get("last_alert_ts")
     changed = (prev_code is None) or (prev_code != exit_code)
-    save_last(exit_code, detail)
-    if not changed:
-        return False, prev_code
-    if prev_code is None and exit_code == 0:
-        return False, prev_code
-    path = write_outbox(exit_code, prev_code, detail)
-    return True, prev_code
+    now_ts = int(_time.time())
+    due_repush = (exit_code != 0 and prev_alert is not None
+                  and now_ts - int(prev_alert) >= REPUSH_SEC)
+    first_fail = (exit_code != 0 and prev_alert is None)
+    if changed or due_repush or first_fail:
+        if prev_code is None and exit_code == 0:
+            save_last(exit_code, detail, prev_alert)
+            return False, prev_code
+        save_last(exit_code, detail, now_ts)
+        path = write_outbox(exit_code, prev_code, detail)
+        return True, prev_code
+    save_last(exit_code, detail, prev_alert)
+    return False, prev_code
 
 
 def write_heartbeat(ok, detail):

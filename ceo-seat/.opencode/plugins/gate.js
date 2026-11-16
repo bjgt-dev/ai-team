@@ -27,7 +27,7 @@ const APPEND_SCRIPTS = ["arch-note-append.sh", "ledger-append.sh"];
 
 // Content fields are skipped when scanning tool params for paths, so a verdict
 // whose text merely mentions a protected file is not falsely denied.
-const CONTENT_FIELDS = new Set(["content", "newText", "new_text", "oldText", "old_text", "text", "body", "diff"]);
+const CONTENT_FIELDS = new Set(["content", "newText", "new_text", "newString", "new_string", "oldText", "old_text", "oldString", "old_string", "text", "body", "diff"]);
 
 // Collect path-like strings from the tool input, shape-agnostic.
 function collectPathStrings(value, out, key) {

@@ -9,7 +9,7 @@ Exit non-zero on any missing REQUIRED item, unreadable source, or manifest misma
 """
 import argparse, hashlib, json, os, shutil, sys
 from pathlib import Path
-SOURCES = {"deepseek": Path("/opt/model-profiles/deepseek"), "gemini": Path("/opt/model-profiles/gemini")}
+SOURCES = {"deepseek": Path("/opt/model-profiles/deepseek"), "gemini": Path("/opt/model-profiles/gemini"), "chatgpt": Path("/opt/model-profiles/chatgpt"), "claude": Path("/opt/model-profiles/claude")}
 # (relative path, required?)  dirs are copied recursively, files singly. LOCK files excluded (runtime locks, not login).
 COMMON = [
     ("Local State", True),
@@ -23,6 +23,8 @@ COMMON = [
 PER_PROVIDER = {
     "deepseek": COMMON + [("Default/IndexedDB", True), ("Default/Sessions", False), ("Default/Sessions_Encrypted", False), ("Default/Service Worker", False), ("Default/Cookies-wal", False), ("Default/Cookies-shm", False)],  # inventory: only https_chat.deepseek.com_0; Sessions/Service Worker per expert round3, optional
     "gemini": COMMON,  # inventory: IndexedDB has NO gemini site (only chrome-extension + claude.ai) -> excluded
+    "chatgpt": COMMON + [("Default/IndexedDB", False), ("Default/Sessions", False)],  # 2026-11-18 web_brain fix: chatgpt profile was not in allowlist
+    "claude": COMMON + [("Default/IndexedDB", False), ("Default/Sessions", False)],  # 2026-11-18 web_brain fix: claude profile was not in allowlist
 }
 EXCLUDE_NAMES = {"Cache", "Code Cache", "GPUCache", "History", "HistorySearch", "Safe Browsing", "SingletonCookie", "SingletonLock", "SingletonSocket", "Crashpad", "DevToolsActivePort", "Extensions", "Downloads", "LOCK"}
 def sha256(p):
@@ -33,7 +35,7 @@ def sha256(p):
 def main():
     a = argparse.ArgumentParser(); a.add_argument("--provider", required=True, choices=list(SOURCES)); a.add_argument("--runtime-dir", required=True); args = a.parse_args()
     src, runtime = SOURCES[args.provider], Path(args.runtime_dir)
-    if str(src) not in ("/opt/model-profiles/deepseek", "/opt/model-profiles/gemini"): sys.exit("source path not allowlisted")
+    if str(src) not in ("/opt/model-profiles/deepseek", "/opt/model-profiles/gemini", "/opt/model-profiles/chatgpt", "/opt/model-profiles/claude"): sys.exit("source path not allowlisted")
     if not str(runtime).startswith("/var/lib/expert-runtime/"): sys.exit("runtime dir not under /var/lib/expert-runtime/")
     if os.geteuid() != 0: sys.exit("must run as root via sudo -n (read-only source)")
     if not src.is_dir(): sys.exit(f"source missing: {src}")

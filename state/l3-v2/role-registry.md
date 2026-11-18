@@ -20,7 +20,7 @@
 - 执行节点人名（光头 / Noesis）→ Worker 逻辑主体的账号/人员注记，不是角色名；角色名统一为 Worker
 
 ## Worker 注册（2026-11-02 13:44 InstaBox API 只读实测）
-- worker-1 m_agqv3bvofwxkfb2m4axoqjbju4：running，ready true，可执行池，已验证
+- worker-1 m_agqv3bvofwxkfb2m4axoqjbju4：已锁定（InstaBox，冷却到 2026-11-19 11:14 CST），节点线已终结；清理 cron 已重建，2026-11-19 12:00 执行。状态更新：2026-11-18。
 - worker-2 m_agqv3c5yhvcfa36clq23hu336m：suspended，未入池，未验证
 - worker-3 m_agqv3n5d3ou3lloeoyv3zg5czq：suspended，未入池，未验证
 - worker-4 m_agqv3n5estnryd66fhihzavtzm：suspended，未入池，未验证
@@ -52,3 +52,7 @@ python3 /home/ubuntu/ai-team/scripts/role-layer-check.py --name <拟议名> --la
 - 新正式角色进 L1/L2 须董事长授权（表头禁令），无授权不许新增、改名、合并。
 - 教训：2026-11-11 23:30 本席把“内容经理”说成“挂在幕僚长下属”的管理角色，董事长纠正“内容经理是 worker”。
 - 验收测试：scripts/test-mechanisms.sh（M2-1 至 M2-5 用例）。
+
+## 工人状态更新规则（2026-11-18 D10 补）
+
+工人状态变化（锁定、暂停、恢复）当天更新本注册表，并写变更记录。

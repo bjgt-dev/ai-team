@@ -159,10 +159,20 @@ if [ "$SSH_OK" = "1" ]; then
   echo "[5b/6] SSH 已通，拉取标准工具到本地 ~/workspace/tools/..."
   mkdir -p ~/workspace/tools
   SSH_OPTS="-o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30"
-  for f in kb-ask.sh kb-write.sh kb-rebuild-watch.sh wake-up-check.sh; do
+  for f in kb-ask.sh kb-write.sh kb-rebuild-watch.sh wake-up-check.sh hub-truth-gate.sh flush-memory.sh hub-sync.sh hub-sync-daemon.sh hub-sync-watch.sh; do
     scp $SSH_OPTS "$HUB_HOST:~/ai-team/scripts/$f" ~/workspace/tools/$f 2>/dev/null && chmod +x ~/workspace/tools/$f && echo "  已拉取 $f" || echo "  拉取 $f 失败（枢纽上可能没有，跳过）"
   done
-  echo "[5c/6] 跑唤醒检查..."
+  echo "[5c/6] 起同步（守护+实时监听）。看门 cron 须由 agent 用 cron API 单独建（脚本建不了 cron），建完用 cron.list 核对..."
+  if [ -f ~/workspace/tools/hub-sync-daemon.sh ]; then
+    bash ~/workspace/tools/hub-sync-daemon.sh start >> ~/workspace/.sync/daemon.log 2>&1 && echo "  同步守护已起" || echo "  同步守护启动失败（唤醒时会重试）"
+  fi
+  if [ -f ~/workspace/tools/hub-sync-watch.sh ]; then
+    bash ~/workspace/tools/hub-sync-watch.sh start >> ~/workspace/.sync/watch.log 2>&1 && echo "  实时监听已起" || echo "  实时监听启动失败（唤醒时会重试）"
+  fi
+  if [ -f ~/workspace/tools/hub-sync.sh ]; then
+    bash ~/workspace/tools/hub-sync.sh 2>&1 | tail -1 || echo "  一次同步未跑通（唤醒时会重试）"
+  fi
+  echo "[5d/6] 跑唤醒检查..."
   if [ -x ~/workspace/tools/wake-up-check.sh ]; then
     bash ~/workspace/tools/wake-up-check.sh 2>&1 | head -20 || true
   else

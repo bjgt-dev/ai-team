@@ -436,7 +436,7 @@ def main():
         try:
             shutil.copytree(cfg["profile"], prof_copy, symlinks=True)
         except (PermissionError, OSError):
-            if a.provider not in ("deepseek", "gemini"):
+            if a.provider not in ("deepseek", "gemini", "chatgpt", "claude"):  # 2026-11-18 web_brain fix: enable sudo fallback for chatgpt/claude
                 raise
             shutil.rmtree(prof_copy, ignore_errors=True)
             import subprocess as _sp

@@ -6,6 +6,32 @@
 # 每轮先跑八层审查代码（butler_eight_layer_review.py：磁盘、过期租约、fb 残留、写死扫描、路由健康），
 # 审查有新发现时该脚本已按去重规则调过一次专家（Gemini），答案写进架构札记，会话负责消化执行。
 TASK='常驻架构师当班：只读精简摘要 /home/ubuntu/ai-team/ceo-seat/out/butler-slim-summary.md 与最新交接文件，不读 259KB 架构札记全文、不读 59KB 决策队列全文；需要细节时再按任务号单条查。能自己动手且可逆、低风险的修（先备份、改后跑验收、不删数据、不关真实待决条目、不编造回执与任务号），直接修并写回执；审查有新发现且不可自动修复时，必须先调 /home/ubuntu/ai-team/scripts/web_brain.py（格式：真机情况 + 卡点 + 候选方案 A/B）问专家（Gemini 优先，DeepSeek 未登录时跳过），消化意见后再修或推决策队列；高危（磁盘清理后仍超 90%）立即推决策队列并同步问专家，不等下一轮；修不了的死结，推决策队列并带 A/B 方案与影响说明，等 Twt 转报董事长。如 ceo-seat/tasks/ 有未审的 review-*.md 定案请求，审阅该请求文件与所指材料后写 verdict（通过/有条件通过/打回，附条件与理由）到 state/butler-verdicts/<任务名>.json，一轮只审最早的一份。最后把本轮结论写成简短架构札记到 /home/ubuntu/ai-team/ceo-seat/out/butler-arch-note.md（只写本轮事实，不写状态行凑数；只追加、禁整文件覆盖，追加前先备份）。'
+# 2026-11-20 REVIEW-DISPATCH（s01e01 7 小时延迟根因：待命会话跳过评审）：待审评审单独派发。
+# pending_review 输出最早的未审 review 文件绝对路径（tasks/ 下按时间最早、且
+# state/butler-verdicts/ 下无同名 .json）；无待审则输出空并返回 1。
+# 目录可经 BUTLER_TASKS_DIR / BUTLER_VERDICTS_DIR 覆盖，仅供测试。
+pending_review() {
+  local tasks_dir="${BUTLER_TASKS_DIR:-/home/ubuntu/ai-team/ceo-seat/tasks}"
+  local verdicts_dir="${BUTLER_VERDICTS_DIR:-/home/ubuntu/ai-team/ceo-seat/state/butler-verdicts}"
+  local f name vname
+  # 按时间从早到晚扫全部 review 文件，返回第一份无 verdict 的；全部有 verdict 则返回 1。
+  # verdict 文件名 = review 文件名去 "review-" 前缀、改 .json（例：review-s01e01-trial-20261120.md -> s01e01-trial-20261120.json）。
+  # 但 verdict 文件名与 review 文件名可能不一致（如 review-kids-iter4-20261107.md 的 verdict
+  # 是 kids-iteration4-20261107.json），此时以 verdict 正文的 reviewed_file 字段为准：
+  # 任一 verdict 引用了该 review 文件即视为已审，避免重复派发。
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    name=$(basename "$f" .md)
+    vname=${name#review-}
+    [ -f "$verdicts_dir/${vname}.json" ] && continue
+    if grep -rq "\"reviewed_file\":\"[^\"]*${name}\\.md\"" "$verdicts_dir"/*.json 2>/dev/null; then
+      continue
+    fi
+    echo "$f"
+    return 0
+  done < <(find "$tasks_dir" -maxdepth 1 -name 'review-*.md' -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | cut -d' ' -f2-)
+  return 1
+}
 LOOP_FILE=/home/ubuntu/ai-team/scripts/butler_loop.sh
 LOOP_HASH_START=$(sha256sum "$LOOP_FILE" | cut -d" " -f1)
 while true; do
@@ -19,8 +45,19 @@ while true; do
   timeout 120 python3 /home/ubuntu/ai-team/scripts/butler_redblue.py >> /home/ubuntu/ai-team/logs/butler-loop.log 2>&1 || true
   # 2026-10-30 第一性原理重构：监督者不阻塞等工人——会话脱离后台跑（自带锁防重入），循环只管监督，
   # 会话日志独立文件，循环周期缩到约3分钟；监督频率上去后，死锁看门阈值可从40分钟收紧到10分钟。
-  ( /home/ubuntu/ai-team/scripts/ceo-opencode.sh "$TASK" >> /home/ubuntu/ai-team/logs/butler-session.log 2>&1 & )  # 2026-11-13 factory repair + chairman hard rule (no LIGHT for reasoning): 显式指定 nemotron-3-ultra（COMPLEX 550B，当前最强，经 opencode 实测 build+OK；Zen 额度耗尽、gemini 429、qwen3.8-27b 为次选）
-  echo $(date '+%F %T') [LOOP] cycle done session-detached >> /home/ubuntu/ai-team/logs/butler-loop.log
+  # 2026-11-20 REVIEW-DISPATCH：有待审评审时只派评审专用会话（TASK 只有评审一件事），
+  # 无待审时照旧派待命会话。评审会话仍走 ceo-opencode.sh，不指定 --model，沿用自动选脑。
+  REVIEW_FILE="$(pending_review || true)"
+  if [ -n "$REVIEW_FILE" ]; then
+    REVIEW_NAME="$(basename "$REVIEW_FILE" .md)"
+    REVIEW_NAME="${REVIEW_NAME#review-}"
+    REVIEW_TASK="评审专用：只审阅 /home/ubuntu/ai-team/ceo-seat/tasks/$(basename "$REVIEW_FILE") 与其所指材料，写 verdict（通过/有条件通过/打回，附条件与理由）到 /home/ubuntu/ai-team/ceo-seat/state/butler-verdicts/${REVIEW_NAME}.json。只做这一件事，不读摘要、不做其他修、不写札记。材料不在本机时按规程打回并列出缺的材料，不编造。"
+    ( /home/ubuntu/ai-team/scripts/ceo-opencode.sh "$REVIEW_TASK" >> /home/ubuntu/ai-team/logs/butler-session.log 2>&1 & )
+    echo $(date '+%F %T') "[LOOP] cycle done review-dispatch file=$(basename "$REVIEW_FILE")" >> /home/ubuntu/ai-team/logs/butler-loop.log
+  else
+    ( /home/ubuntu/ai-team/scripts/ceo-opencode.sh "$TASK" >> /home/ubuntu/ai-team/logs/butler-session.log 2>&1 & )  # 2026-11-13 factory repair + chairman hard rule (no LIGHT for reasoning): 显式指定 nemotron-3-ultra（COMPLEX 550B，当前最强，经 opencode 实测 build+OK；Zen 额度耗尽、gemini 429、qwen3.8-27b 为次选）
+    echo $(date '+%F %T') [LOOP] cycle done session-detached >> /home/ubuntu/ai-team/logs/butler-loop.log
+  fi
   sleep 180
 done
 # HOTRELOAD-TEST2-20261031

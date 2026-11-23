@@ -66,7 +66,7 @@ def fail_cats_via_docker(start, end, business=None):
     if business:
         sql += " AND business='%s'" % business.replace("'", "''")
     sql += " GROUP BY category ORDER BY category"
-    r = subprocess.run(["docker", "exec", "-u", "postgres", "ops-pg",
+    r = subprocess.run(["docker", "exec", "-u", "999", "ops-pg",
                         "psql", "-d", "central_queue", "-t", "-A", "-c", sql],
                        capture_output=True, text=True, timeout=60)
     if r.returncode != 0:

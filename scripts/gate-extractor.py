@@ -40,7 +40,14 @@ PROMPT = (
     "不要复述原文、不要编造、不要推断未写明的事。\n"
     "分类（每条一行，格式固定）：\n"
     "决定：<一句话>\n事实：<一句话>\n约束：<一句话>\n未完成：<一句话>\n"
-    "无可抽取条目时只输出一行：无可抽取条目。\n"
+    "决定栏铁律（2026-11-23 决定 14 修，误标重灾区）：只有“某人在某时拍板"
+    "决定了某事”才进决定栏，必须能说出是谁、何时、决定了什么，三者缺一"
+    "不可。日志原文、定时任务行、规则重述、职责/流程描述、观察结论、状态"
+    "快照一律不进决定栏；本批无符合的决定时只输出一行“决定：无”，不要"
+    "拿别的句子凑数。\n"
+    "同一句话只写一次：不要把同一内容同时写进决定和事实（或事实和未完成），"
+    "重复内容只保留在事实栏。\n"
+    "无可抽取条目时只输出一行：无可抽取条目；有任何一条有效条目时不输出这行。\n"
     "只保留有实质内容的条目，寒暄、重复、无信息量的行跳过。\n\n{records}\n"
 )
 
@@ -181,9 +188,22 @@ def call_model(records_text):
     raise RuntimeError("gateway call failed for both models: %s" % last_err)
 
 
+def _norm_body(text):
+    """Normalize an item body for duplicate comparison: drop whitespace and
+    common punctuation so near-identical repeats (e.g. differing by two
+    chars) still match. Used only to drop duplicates, never to rewrite."""
+    import re
+    return re.sub(r"[\s，。、；：,.!！?？·\-_—/\\()（）\[\]【】\"'“”‘’]+", "", text)
+
+
 def _clean_extracted(text):
     """Normalize model output: some free models emit literal '\\n' and echo
-    the instruction header ('分类：'). Keep only real item lines."""
+    the instruction header ('分类：'). Keep only real item lines.
+    2026-11-23 决定 14 修：模型常把同一句话同时写进决定和事实（K2 五组
+    重文）、把规则/职责/观察写进决定栏、把同一批日志反复抽取（K7）。
+    语义误标靠提示词铁律拦；此处再做确定性去重兜底：(a) 有有效条目时
+    丢弃“无可抽取条目”行；(b) 同一内容（归一化后相同）只保留第一次出现，
+    决定栏与事实栏重文时保留事实栏那行。"""
     if not text:
         return ""
     text = text.replace("\\n", "\n").replace("\\r", "")
@@ -197,7 +217,36 @@ def _clean_extracted(text):
             lines.append(line)
         elif line in ("分类：", "分类:"):
             continue
-    return "\n".join(lines) if lines else text.strip()
+    if not lines:
+        return text.strip()
+    # (a) “无可抽取条目”是空结果标记：有其他有效条目时丢弃
+    # （含“未完成：无可抽取条目。”这种带栏位的写法，旧版漏网）。
+    def _is_empty_marker(ln):
+        body = ln.split("：", 1)[1].strip() if "：" in ln else ln
+        return _norm_body(body) == "无可抽取条目"
+    items = [ln for ln in lines if not _is_empty_marker(ln)]
+    if items:
+        lines = items
+    # (b) 跨栏去重：同一归一化内容只留第一次出现。
+    # 事实栏优先：若某内容先出现在决定栏、后出现在事实栏，保留事实栏那行；
+    # 但“无”是空栏位标记，只留第一次出现、不做决定→事实替换
+    # （决定：无本身就是有效信号，事实：无没有信息量）。
+    seen = {}
+    keep = []
+    for ln in lines:
+        body = ln.split("：", 1)[1].strip() if "：" in ln else ln
+        key = _norm_body(body)
+        if not key:
+            continue
+        if key in seen:
+            prev = seen[key]
+            if key != "无" and prev.startswith("决定：") and ln.startswith("事实："):
+                keep[keep.index(prev)] = ln
+            # 其余重复一律丢弃（决定/事实重文、事实/未完成重文、整行反复）。
+            continue
+        seen[key] = ln
+        keep.append(ln)
+    return "\n".join(keep)
 
 
 def load_state():

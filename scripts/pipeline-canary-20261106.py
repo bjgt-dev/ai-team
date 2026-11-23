@@ -88,7 +88,11 @@ def main():
     verdict_dir = os.path.join(BASE, "ceo-seat", "state", "butler-verdicts")
     os.makedirs(verdict_dir, exist_ok=True)
     with open(os.path.join(verdict_dir, "%s.json" % tid), "w") as f:
+        # plan_id carried in the verdict so verdict-auto-dispatch can pass
+        # the g5-planid gate (2026-11-23 fix: the 00:00 verdict had no
+        # plan_id, so even the fixed auto-dispatch would still refuse it).
         json.dump({"verdict": "通过", "task": tid,
+                   "plan_id": "03f949a2-3d19-4743-a279-d2a6ed1327d4",
                    "note": "SYNTHETIC regression-harness verdict (self-issued by pipeline-canary); proves pipeline mechanics only, not independent review.",
                    "ts": datetime.datetime.now(datetime.timezone.utc).isoformat()}, f, ensure_ascii=False)
     pre = subprocess.run(["python3", BASE + "/scripts/preflight-gate-20261107.py",

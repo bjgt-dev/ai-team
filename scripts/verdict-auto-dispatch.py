@@ -112,10 +112,27 @@ def main():
         "pass_line": "条件逐项落实；交付物齐全；测试全绿且附原始输出 sha256；无编造成绩、无已复核冒充。",
         "fail_action": "任一证据缺失则 RETRY_WAIT，不报 DONE；实现不了则一次性报缺项并留 READY。",
         "output_path": "/home/ubuntu/ai-team/state/%s-DELIVERABLES.md" % s,
+        # cutover51 strict (2026-11-10) + g5-planid (2026-11-11): code
+        # tasks MUST carry these fields or dispatch_task.py INSERT REFUSES.
+        # The 2026-11-23 00:00 canary verdict auto-dispatch failed exactly
+        # for their absence (watchdog showed the first three; the gate
+        # also requires plan_id + estimated_seconds, cut off by its
+        # 300-char truncation). Defaults match the pipeline-canary
+        # contract: pytest, 60 s baseline, no third-party deps, 600 s
+        # estimate. plan_id is carried over from the verdict when the
+        # butler put it there; it is NEVER invented here -- a verdict
+        # without one is refused by the gate, as it should be.
+        "test_command": ["python3", "-m", "pytest", "-q"],
+        "test_baseline_seconds": 60,
+        "allowed_dependencies": [],
+        "estimated_seconds": 600,
         "dependencies": [],
         "five_part": five_part,
         "variants": [],
     }
+    _pid = v.get("plan_id")
+    if isinstance(_pid, str) and _pid.strip():
+        contract["plan_id"] = _pid.strip()
     tmp = "/tmp/verdict-dispatch-%s.json" % s
     with open(tmp, "w") as f:
         json.dump(contract, f, ensure_ascii=False, indent=2)

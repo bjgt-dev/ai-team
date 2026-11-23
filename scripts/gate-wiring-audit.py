@@ -30,6 +30,9 @@ OUTBOX = os.path.join(STATE, "outbox")
 # 门禁清单：(编号, 名称, 脚本路径, 调用点证据, 收据证据)
 # 调用点证据：cron 关键字或调用方脚本；收据证据：日志文件（48h 内有写入）。
 GATES = [
+    # 2026-11-23 w5-trust: 2.1-5/2.1-7 原收据路径 state/logs/*.log 在枢纽上不存在，
+    # 真实回执在 state/dispatch-gate-ledger.jsonl（dispatch-gate-hub.py 写）与
+    # state/preflight-ledger.jsonl（preflight-check.py 写）；旧路径保留作候补。
     ("2.1-1", "verifier 五门", "scripts/c2-verifier-20261104.py",
      ["c2-verifier", "verifier"], ["state/logs/queue-api-audit.log", "logs/verifier.log"]),
     ("2.1-2", "M4 五硬护栏", "scripts/m4-antirecurrence-guard-20261107.py",
@@ -39,11 +42,11 @@ GATES = [
     ("2.1-4", "decision-code-gate", "scripts/decision-code-gate.py",
      ["decision-code-gate"], ["state/logs/decision-code-gate.log"]),
     ("2.1-5", "dispatch-gate", "scripts/dispatch-gate-hub.py",
-     ["dispatch-gate"], ["state/logs/dispatch-gate.log", "state/logs/codegen-20261110.log"]),
+     ["dispatch-gate"], ["state/dispatch-gate-ledger.jsonl", "state/logs/dispatch-gate.log", "state/logs/codegen-20261110.log"]),
     ("2.1-6", "评审硬门", "scripts/queue_api-20261105.py",
      ["REVIEW_ENFORCE", "queue_api"], ["state/logs/queue-api-audit.log"]),
     ("2.1-7", "preflight 四门禁", "scripts/preflight-check.py",
-     ["preflight"], ["state/logs/preflight.log"]),
+     ["preflight"], ["state/preflight-ledger.jsonl", "state/logs/preflight.log"]),
     ("3-3", "四类门", "scripts/four-category-gate.py",
      ["four-category-gate"], ["state/logs/four-category-gate.log"]),
     ("new-1", "implementation-gate", "scripts/implementation-gate.sh",

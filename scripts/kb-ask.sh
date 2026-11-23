@@ -2,7 +2,8 @@
 # kb-ask.sh v3 — 查知识库（只用 grep，实时）
 # 用法：kb-ask.sh "问题"
 # 机制（2026-11-10 收敛后）：单一共享记忆 = 枢纽 knowledge/（Markdown 文件，
-#   按领域分：研究/驾驶舱/业务/工具/商业/角色/收件箱/品牌/主理人）；
+#   按领域分（正典见 knowledge/驾驶舱/知识库分类正典-20261123.md）：业务/商业/工具/研究/角色/驾驶舱/主理人/core/intel/ip-content/收件箱；
+#   品牌/ 无目录、未落地，不作领域；根目录仅短剧历史遗留与 canary 探针记录；
 #   检索只用直接 grep（实时，排除 _archive/）；向量索引已停（kb-rebuild-watch
 #   cron 已停，index.npz/index.json 已归档到 kb-retrieval-20261106/_archive-v1/）。
 # 查不到就明说没查到，不许编。

@@ -61,7 +61,9 @@ ACTION_WHITELIST = {"deploy", "写生产库", "git-push", "systemctl", "ssh-vps"
 # Enforce-mode execution: each whitelisted action maps to ONE fixed operator
 # script (task slug as sole argument, no shell). Scripts do not exist yet on
 # purpose: enforce mode therefore fails closed and logs the miss until the
-# chairman defines them. gate.mode is currently "off", so nothing executes.
+# chairman defines them. gate.mode is currently "enforce" (verified 2026-11-23:
+# /etc/noesis/gate.mode reads enforce); actions execute only via their whitelisted
+# operator scripts, and a missing operator still fails closed.
 ACTION_SCRIPTS = {
     "deploy": "/home/ubuntu/ai-team/scripts/gate-action-deploy.sh",
     "写生产库": "/home/ubuntu/ai-team/scripts/gate-action-dbwrite.sh",

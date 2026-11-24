@@ -3,10 +3,10 @@
 
 MEMORY claims ascs-30min-watch + renewal reminder 2026-11-24 exist, but
 no script, no cron line and no state file existed on the hub -- this file
-lands the rule as code. Ticket TKT-407168457, renewal 2026-11-29.
+lands the rule as code. Ticket TKT-407168457, renewal 2026-12-23 (renewed 2026-11-24 via free confirmation; was 2026-11-29).
   * every run refreshes state/ascs-watch.json last_check (the 30-min watch
     is the cron that runs this script; staleness = watch not running).
-  * on/after 2026-11-24 (reminder date) and <=5 days to renewal: write one
+  * on/after 2026-12-18 (reminder date) and <=5 days to renewal: write one
     outbox reminder (once per day), exit 1 DUE-SOON.
   * renewal date passed with ticket still OPEN -> FAIL (exit 1).
 State file is the only production-adjacent write (plus outbox reminders);
@@ -21,8 +21,8 @@ BASE = os.environ.get("AI_TEAM", "/home/ubuntu/ai-team")
 STATE_FILE = os.path.join(BASE, "state", "ascs-watch.json")
 OUTBOX = os.path.join(BASE, "state", "outbox")
 TICKET = "TKT-407168457"
-RENEWAL = date(2026, 11, 29)
-REMINDER = date(2026, 11, 24)
+RENEWAL = date(2026, 12, 23)
+REMINDER = date(2026, 12, 18)
 
 
 def load_state(path):
@@ -71,12 +71,12 @@ def self_test():
     st = {"ticket": TICKET, "status": "OPEN", "reminders_sent": []}
     code, msgs, acts = check(date(2026, 11, 7), st)
     ck(code == 0, "2026-11-07 far from renewal -> PASS")
-    code, msgs, acts = check(date(2026, 11, 24), dict(st))
-    ck(code == 1 and acts == ["outbox"], "2026-11-24 reminder date -> DUE-SOON + outbox")
-    st2 = dict(st, reminders_sent=["reminder_2026-11-24"])
-    code, _, acts = check(date(2026, 11, 24), st2)
+    code, msgs, acts = check(date(2026, 12, 18), dict(st))
+    ck(code == 1 and acts == ["outbox"], "2026-12-18 reminder date -> DUE-SOON + outbox")
+    st2 = dict(st, reminders_sent=["reminder_2026-12-18"])
+    code, _, acts = check(date(2026, 12, 18), st2)
     ck(code == 1 and acts == [], "reminder already sent today -> no duplicate outbox")
-    code, _, _ = check(date(2026, 11, 30), dict(st))
+    code, _, _ = check(date(2026, 12, 24), dict(st))
     ck(code == 1, "past renewal with OPEN ticket -> FAIL")
     code, _, _ = check(date(2026, 11, 7), dict(st, status="CLOSED"))
     ck(code == 0, "CLOSED ticket -> PASS")

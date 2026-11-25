@@ -7,7 +7,7 @@ code 类另过 gates 2/3/4（verifier_gates234）：AST 非空、临时目录重
 失败: VERIFYING -> RETRY_WAIT, retry_count+1, lease RELEASED. (F2 2026-11-10: retry>=max -> QUARANTINED, no +1.)
 DSN 只从 state/.cq-dsn 读, 无 DSN 则 fail closed.
 """
-import hashlib, json, os, re, subprocess, sys
+import hashlib, json, os, re, subprocess, sys, time
 DSN_FILE = "/home/ubuntu/ai-team/state/.cq-dsn"
 DELIV_DIR = "/home/ubuntu/ai-team/state/deliverables"
 # M5-2 (2026-11-05): cross-supplier review hook for deliverable tasks.
@@ -25,6 +25,78 @@ try:
 except Exception:
     _GATES234 = None
 VERDICT_DIR = "/home/ubuntu/ai-team/state/verifier-verdicts"
+
+# M0-A (2026-11-25): five-gates version stamp (see state/eval-versions.md).
+GATES_VERSION = "five-gates-v1"
+# Pass^3: gates 2/3/4 run this many times (module gates234 only; the rest
+# of the verifier runs once). Run 1 is the authoritative verdict; runs 2-3
+# only feed pass3/latency and never flip ok.
+GATES234_RUNS = 3
+# M0-A: pytest-reported seconds from the most recent inline gate 3/4 run
+# (parsed from the re-run output, not wall clock). Written by
+# _gate3_rerun/_gate4_redgreen, read by the verdict builder. Reset per
+# task in main() so a skipped gate never reports a stale previous run.
+_GATE_PYTEST_SECONDS = {}
+# M0-A: pytest seconds parsed from the submitted artifact by slop_tripwire
+# (claimed runtime, untrusted); recorded in the verdict, never trusted.
+_SLOP_TEST_SECONDS = None
+
+
+def _utc_now_iso():
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _p95_ms(samples):
+    """Nearest-rank P95 over millisecond samples (for n<=4 this is the
+    max); None when nothing was measured."""
+    vals = sorted(s for s in samples if isinstance(s, (int, float)))
+    if not vals:
+        return None
+    rank = max(1, -(-95 * len(vals) // 100))
+    return round(vals[min(rank, len(vals)) - 1], 1)
+
+
+def _gate_tuple_to_result(gate_tuple):
+    """Inline gate (verdict, detail) -> {"result": "PASS"|"FAIL"|"NA",
+    "reason": detail}. The GATES log line keeps the lowercase form."""
+    v, d = gate_tuple
+    return {"result": {"pass": "PASS", "reject": "FAIL", "na": "NA"}.get(v, "NA"),
+            "reason": d}
+
+
+def _pass3_deterministic(result, note):
+    """pass3 entry for a deterministic (single-evaluation) gate.
+    result is "PASS"/"FAIL"/"NA"/None. A deterministic check is recorded
+    as 3/3 when it passed, 0/3 when it rejected: repeats would be
+    identical, so this states determinism, NOT reliability."""
+    if result is None:
+        return {"passed": None, "runs": GATES234_RUNS,
+                "note": "gate not evaluated"}
+    if result == "NA":
+        return {"passed": None, "runs": GATES234_RUNS,
+                "note": "na: gate not applicable"}
+    return {"passed": GATES234_RUNS if result == "PASS" else 0,
+            "runs": GATES234_RUNS, "note": note}
+
+
+def _write_verdict_json(task_id, record):
+    """Write state/verifier-verdicts/<task_id>.json and prune to newest 200.
+    Fail-silent by design: a verdict write failure must never fail the task."""
+    try:
+        os.makedirs(VERDICT_DIR, exist_ok=True)
+        with open(os.path.join(VERDICT_DIR, "%s.json" % task_id), "w", encoding="utf-8") as _vf:
+            json.dump(record, _vf, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+    try:
+        _allv = sorted((os.path.join(VERDICT_DIR, _f) for _f in os.listdir(VERDICT_DIR) if _f.endswith(".json")), key=os.path.getmtime)
+        for _oldv in _allv[:-200]:
+            try:
+                os.remove(_oldv)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 def _review_fail_reasons(task_id):
     """Best-effort read of the review record's reasons for this task."""
@@ -201,14 +273,19 @@ def slop_tripwire(contract, workdir, artifact_data):
     """Return a list of slop trip reasons (empty = clean). contract is the
     task contract dict; workdir is the task workdir string (may be None);
     artifact_data is the deliverable bytes."""
+    global _SLOP_TEST_SECONDS
     trips = []
     if not isinstance(contract, dict):
         contract = {}
     text = artifact_data.decode("utf-8", errors="ignore") if isinstance(artifact_data, (bytes, bytearray)) else str(artifact_data or "")
     # 1. Test runtime vs baseline (+20%).
+    # M0-A: the parsed seconds are recorded (module global
+    # _SLOP_TEST_SECONDS) into the verdict latency data instead of being
+    # discarded after this comparison.
+    _SLOP_TEST_SECONDS = _parse_pytest_seconds(text)
     baseline = contract.get("test_baseline_seconds")
     if isinstance(baseline, (int, float)) and baseline > 0:
-        runtime = _parse_pytest_seconds(text)
+        runtime = _SLOP_TEST_SECONDS
         if runtime is not None and runtime > baseline * 1.2:
             trips.append("test runtime %.2fs exceeds baseline %.2fs by >20%%" % (runtime, baseline))
     # 2. New dependency not in contract allowlist.
@@ -690,6 +767,7 @@ def _gate3_rerun(contract, src_files):
     if not isinstance(timeout, (int, float)) or timeout <= 0:
         timeout = _GATE_TEST_TIMEOUT_DEFAULT
     rc, out = _run_in_fresh_dir(argv, files, timeout)
+    _GATE_PYTEST_SECONDS["3"] = _parse_pytest_seconds(out or "")
     if isinstance(rc, str) and rc.startswith("sandbox-unavailable"):
         return ("reject", "test re-run refused: %s" % rc)
     if rc is None:
@@ -760,7 +838,8 @@ def _gate4_redgreen(contract, src_files):
             stubs[os.path.basename(src)] = sp
         files_stub = dict(test_files)
         files_stub.update(stubs)
-        rc_stub, _ = _run_in_fresh_dir(argv, files_stub, timeout)
+        rc_stub, out_stub = _run_in_fresh_dir(argv, files_stub, timeout)
+        _GATE_PYTEST_SECONDS["4_stub"] = _parse_pytest_seconds(out_stub or "")
         if isinstance(rc_stub, str) and rc_stub.startswith("sandbox-unavailable"):
             return ("reject", "red-green stub run refused: %s" % rc_stub)
         if rc_stub == 0:
@@ -771,6 +850,7 @@ def _gate4_redgreen(contract, src_files):
         for src in py_srcs:
             files_real[os.path.basename(src)] = src
         rc_real, out_real = _run_in_fresh_dir(argv, files_real, timeout)
+        _GATE_PYTEST_SECONDS["4"] = _parse_pytest_seconds(out_real or "")
         if isinstance(rc_real, str) and rc_real.startswith("sandbox-unavailable"):
             return ("reject", "red-green real-source run refused: %s" % rc_real)
         if rc_real is None:
@@ -936,6 +1016,7 @@ def _eval_acceptance(cur, task_id, payload):
 
 
 def main():
+    global _SLOP_TEST_SECONDS
     dsn = get_dsn()
     if not dsn:
         print("c2-verifier: no DSN, refusing")
@@ -953,6 +1034,10 @@ def main():
                 lease = cur.fetchone()
                 ok = True; reason = ""
                 gates = {}
+                # M0-A: reset per-task measurement globals (a skipped gate
+                # must never report the previous task's numbers).
+                _GATE_PYTEST_SECONDS.clear()
+                _SLOP_TEST_SECONDS = None
                 if not lease or lease[0] != token:
                     ok = False; reason = "fencing mismatch"
                 elif not sha or not SHA64.match(sha):
@@ -960,6 +1045,7 @@ def main():
                 elif nbytes is None or nbytes < (min_bytes or 0):
                     ok = False; reason = "bytes below min"
                 elif payload.get("type") == "llm_doc":
+                    _lat = {}
                     path = os.path.join(DELIV_DIR, f"{task_id}.md")
                     if not os.path.exists(path):
                         ok = False; reason = "deliverable file missing"
@@ -977,20 +1063,63 @@ def main():
                             gates["2"] = ("na", "llm_doc: not code")
                             gates["3"] = ("na", "llm_doc: not code")
                             gates["4"] = ("na", "llm_doc: not code")
+                            _t0 = time.perf_counter()
                             g1 = _gate1_output_paths(_cd)
+                            _lat["1"] = (time.perf_counter() - _t0) * 1000.0
                             gates["1"] = g1
                             if g1[0] == "reject":
                                 ok = False; reason = "gate1: " + g1[1]
                             if ok:
+                                _t0 = time.perf_counter()
                                 g5 = _gate5_llm_echo(payload, data)
+                                _lat["5"] = (time.perf_counter() - _t0) * 1000.0
                                 gates["5"] = g5
                                 if g5[0] == "reject":
                                     ok = False; reason = "gate5: " + g5[1]
                             if ok:
+                                _t0 = time.perf_counter()
                                 g6 = _gate6_content_quality(payload, data, _cd)
+                                _lat["6"] = (time.perf_counter() - _t0) * 1000.0
                                 gates["6"] = g6
                                 if g6[0] == "reject":
                                     ok = False; reason = "gate6: " + g6[1]
+                    # M0-A: llm_doc verdict file (before this, the gates
+                    # dict was only printed, never written to disk).
+                    # Includes gate 6. Written regardless of ok.
+                    _det_note = "deterministic: pure file/text check, single evaluation recorded as 3/3"
+                    _rec = {
+                        "task_id": str(task_id),
+                        "ts": _utc_now_iso(),
+                        "gates_version": GATES_VERSION,
+                        "type": "llm_doc",
+                        "gates": {k: _gate_tuple_to_result(v) for k, v in sorted(gates.items())},
+                        "gates234": None,
+                        "ok": ok,
+                        "reason": reason,
+                        "runs": GATES234_RUNS,
+                        "pass3": {
+                            "1": _pass3_deterministic({"pass": "PASS", "reject": "FAIL", "na": "NA"}.get(gates["1"][0]) if "1" in gates else None, _det_note),
+                            "2": {"passed": None, "runs": GATES234_RUNS, "note": "na: llm_doc is not code"},
+                            "3": {"passed": None, "runs": GATES234_RUNS, "note": "na: llm_doc is not code"},
+                            "4": {"passed": None, "runs": GATES234_RUNS, "note": "na: llm_doc is not code"},
+                            "5": _pass3_deterministic({"pass": "PASS", "reject": "FAIL", "na": "NA"}.get(gates["5"][0]) if "5" in gates else None, _det_note),
+                            "6": _pass3_deterministic({"pass": "PASS", "reject": "FAIL", "na": "NA"}.get(gates["6"][0]) if "6" in gates else None, _det_note),
+                        },
+                        "cost_usd": 0,
+                        "cost_tokens": 0,
+                        "latency_ms": {
+                            "1": round(_lat["1"], 1) if "1" in _lat else None,
+                            "2": None, "3": None, "4": None,
+                            "5": round(_lat["5"], 1) if "5" in _lat else None,
+                            "6": round(_lat["6"], 1) if "6" in _lat else None,
+                        },
+                        "pytest_seconds": {},
+                        "notes": [
+                            "pass3 for deterministic gates (1/5/6) is recorded as 3/3 from a single evaluation: the check is pure file/text inspection, so repeats would be identical. This is NOT evidence of reliability; it only states determinism.",
+                            "cost is 0: no LLM call is made by the five gates (or gate 6).",
+                        ],
+                    }
+                    _write_verdict_json(task_id, _rec)
                 elif payload.get("type") == "patrol":
                     import time as _t2
                     path = "/home/ubuntu/ai-team/ceo-seat/out/patrol-latest.md"
@@ -1005,11 +1134,25 @@ def main():
                 elif payload.get("type") == "code":
                     # 2026-11-06 anti-fake-DONE: code tasks must have a real
                     # deliverable file, not just a 156-byte pytest stub.
-                    import glob as _g
-                    _cands = _g.glob(os.path.join(DELIV_DIR, f"{task_id}*")) + _g.glob(os.path.join("/home/ubuntu/ai-team/state/c2-task-results", f"{task_id}*"))
+                    # M0-A: verdict state is initialised here so the final
+                    # write (at the end of this branch) can record every
+                    # outcome, including early failures.
+                    _g = {}
+                    _g234 = None
+                    _g234_runs = []
+                    _lat_samples = {"1": [], "2": [], "3": [], "4": [], "5": [], "F": []}
+                    _pytest_s = {"3": [], "4": []}
+                    import glob as _glob
+                    _cands = _glob.glob(os.path.join(DELIV_DIR, f"{task_id}*")) + _glob.glob(os.path.join("/home/ubuntu/ai-team/state/c2-task-results", f"{task_id}*"))
                     if not _cands:
                         ok = False; reason = "code deliverable file missing"
+                        _g["1"] = {"result": "FAIL", "reason": reason}
+                        _g["5"] = {"result": "NA", "reason": "not evaluated"}
+                        _g["2"] = {"result": "NA", "reason": "skipped: gate 1/5 failed"}
+                        _g["3"] = {"result": "NA", "reason": "skipped: gate 1/5 failed"}
+                        _g["4"] = {"result": "NA", "reason": "skipped: gate 1/5 failed"}
                     else:
+                        _t_early = time.perf_counter()
                         _data = open(_cands[0], "rb").read()
                         if hashlib.sha256(_data).hexdigest() != sha or len(_data) != nbytes:
                             ok = False; reason = "code file sha/bytes mismatch"
@@ -1020,7 +1163,12 @@ def main():
                         # Gates 2/3/4 (2026-11-06, verifier-gates-234).
                         # Gate 1 = file/sha/bytes (above); gate 5 = stub check (above).
                         # Gates 2/3/4 run only when 1+5 passed; anything else is NA.
-                        _g = {}
+                        # M0-A: the early file/sha/bytes/stub check above
+                        # evaluates gates 1+5 together; its wall time is the
+                        # single latency sample for both.
+                        _early_ms = (time.perf_counter() - _t_early) * 1000.0
+                        _lat_samples["1"].append(_early_ms)
+                        _lat_samples["5"].append(_early_ms)
                         if not ok:
                             if reason == "code artifact is pytest stub only":
                                 _g["1"] = {"result": "PASS", "reason": "file/sha/bytes ok"}
@@ -1049,7 +1197,37 @@ def main():
                                     if not os.path.isdir(_refdir):
                                         _refdir = None
                                 _require_bundle = isinstance(_contract, dict) and (_contract.get("format") == "PULLONCE-BUNDLE-V1" or bool(_contract.get("tests")) or bool(_contract.get("require_bundle")))
-                                _g234 = _GATES234.check_code_gates(_data, reference_dir=_refdir, timeout_s=120, require_bundle=_require_bundle)
+                                # M0-A pass^3: gates 2/3/4 run GATES234_RUNS
+                                # times. Run 1 is the authoritative verdict
+                                # (same as before); runs 2-3 only feed pass3
+                                # and latency and never flip ok, so a flaky
+                                # repeat is recorded, not silently promoted
+                                # to a reject. Only the module gates (i.e.
+                                # the test commands) are repeated, not the
+                                # whole verifier. Timeout budget: each repeat
+                                # uses the SAME 120s timeout as run 1 so pass
+                                # counts are comparable. Worst case per module
+                                # run is gate3 120s + gate4 stub 120s = 240s
+                                # (240s x 3 = 720s); inline gates add up to
+                                # 360s more. Nominal cost for small suites is
+                                # seconds. The per-minute cron uses flock, so
+                                # a long run delays (never piles up) the next.
+                                _g234_runs = []
+                                _g234 = None
+                                for _ri in range(GATES234_RUNS):
+                                    _r = _GATES234.check_code_gates(_data, reference_dir=_refdir, timeout_s=120, require_bundle=_require_bundle)
+                                    _g234_runs.append(_r)
+                                    if _ri == 0:
+                                        _g234 = _r
+                                for _r in _g234_runs:
+                                    _dm = _r.get("durations_ms") or {}
+                                    for _k in ("2", "3", "4"):
+                                        if _dm.get(_k) is not None:
+                                            _lat_samples[_k].append(_dm[_k])
+                                    _ps = _r.get("pytest_seconds") or {}
+                                    for _k in ("3", "4"):
+                                        if _ps.get(_k) is not None:
+                                            _pytest_s[_k].append(_ps[_k])
                                 _g.update({"2": _g234["2"], "3": _g234["3"], "4": _g234["4"]})
                                 if not _g234["ok"]:
                                     _bad = [k for k in ("2", "3", "4") if _g[k]["result"] == "FAIL"]
@@ -1060,21 +1238,11 @@ def main():
                                 _g["2"] = {"result": "FAIL", "reason": "gates234 error: %s" % _ge}
                                 _g["3"] = {"result": "NA", "reason": ""}
                                 _g["4"] = {"result": "NA", "reason": ""}
-                        try:
-                            os.makedirs(VERDICT_DIR, exist_ok=True)
-                            with open(os.path.join(VERDICT_DIR, "%s.json" % task_id), "w", encoding="utf-8") as _vf:
-                                json.dump({"task_id": str(task_id), "gates": _g, "ok": ok, "reason": reason}, _vf, ensure_ascii=False, indent=2)
-                        except Exception:
-                            pass
-                        try:
-                            _allv = sorted((os.path.join(VERDICT_DIR, _f) for _f in os.listdir(VERDICT_DIR) if _f.endswith(".json")), key=os.path.getmtime)
-                            for _oldv in _allv[:-200]:
-                                try:
-                                    os.remove(_oldv)
-                                except Exception:
-                                    pass
-                        except Exception:
-                            pass
+                                _g234_runs = []
+                                _g234 = None
+                        # M0-A: the old verdict write sat here, before the
+                        # inline gates below ran. It is gone: the single
+                        # final write is at the end of this branch.
                         print("c2-verifier: GATES %s 1=%s 2=%s 3=%s 4=%s 5=%s" % (task_id, _g["1"]["result"], _g["2"]["result"], _g["3"]["result"], _g["4"]["result"], _g["5"]["result"]))
                         if ok:
                             # Thorsten Ball Rule 7 (2026-11-07): workdir isolation.
@@ -1129,40 +1297,112 @@ def main():
                         # Five gates (2026-11-07): 1 output_path, 2 AST,
                         # 3 re-run, 4 red-green, 5 source-present. Each
                         # records pass/reject/na; any reject fails the task.
+                        # M0-A: each inline gate is timed (perf_counter)
+                        # into _lat_samples; pytest seconds are collected
+                        # from _GATE_PYTEST_SECONDS after gates 3/4.
                         if ok:
                             _contract = payload.get("contract") if isinstance(payload, dict) else None
                             _cd = _contract if isinstance(_contract, dict) else {}
                             _srcs = _py_source_candidates(_cd, _wd)
+                            _t0 = time.perf_counter()
                             g1 = _gate1_output_paths(_cd)
+                            _lat_samples["1"].append((time.perf_counter() - _t0) * 1000.0)
                             gates["1"] = g1
                             if g1[0] == "reject":
                                 ok = False; reason = "gate1: " + g1[1]
                             if ok:
+                                _t0 = time.perf_counter()
                                 g2 = _gate2_ast(_cd, _wd)
+                                _lat_samples["2"].append((time.perf_counter() - _t0) * 1000.0)
                                 gates["2"] = g2
                                 if g2[0] == "reject":
                                     ok = False; reason = "gate2: " + g2[1]
                             if ok:
+                                _t0 = time.perf_counter()
                                 g3 = _gate3_rerun(_cd, _srcs)
+                                _lat_samples["3"].append((time.perf_counter() - _t0) * 1000.0)
+                                if _GATE_PYTEST_SECONDS.get("3") is not None:
+                                    _pytest_s["3"].append(_GATE_PYTEST_SECONDS["3"])
                                 gates["3"] = g3
                                 if g3[0] == "reject":
                                     ok = False; reason = "gate3: " + g3[1]
                             if ok:
+                                _t0 = time.perf_counter()
                                 g4 = _gate4_redgreen(_cd, _srcs)
+                                _lat_samples["4"].append((time.perf_counter() - _t0) * 1000.0)
+                                if _GATE_PYTEST_SECONDS.get("4") is not None:
+                                    _pytest_s["4"].append(_GATE_PYTEST_SECONDS["4"])
                                 gates["4"] = g4
                                 if g4[0] == "reject":
                                     ok = False; reason = "gate4: " + g4[1]
                             if ok:
+                                _t0 = time.perf_counter()
                                 g5 = _gate5_code(_srcs, _data)
+                                _lat_samples["5"].append((time.perf_counter() - _t0) * 1000.0)
                                 gates["5"] = g5
                                 if g5[0] == "reject":
                                     ok = False; reason = "gate5: " + g5[1]
                             if ok:
                                 # Cutover51 W5.1: forbidden-path check.
+                                _t0 = time.perf_counter()
                                 gf = _gate_forbidden(_cd, _srcs)
+                                _lat_samples["F"].append((time.perf_counter() - _t0) * 1000.0)
                                 gates["F"] = gf
                                 if gf[0] == "reject":
                                     ok = False; reason = "gateF: " + gf[1]
+                    # M0-A: FINAL verdict write — after ALL gates (module
+                    # gates234 x3, slop/workdir/evidence, inline gates
+                    # 1-5+F). The old write sat before the inline gates, so
+                    # the file could say PASS while the task went RETRY_WAIT;
+                    # that split is gone. "gates" is the inline result (it
+                    # matches the GATES receipt line below); module results
+                    # live in "gates234".
+                    _final_gates = {k: dict(v) for k, v in _g.items()}
+                    for _k, _v in sorted(gates.items()):
+                        _final_gates[_k] = _gate_tuple_to_result(_v)
+                    _pass3 = {}
+                    for _k in ("2", "3", "4"):
+                        _results = [r.get(_k, {}).get("result") for r in _g234_runs]
+                        if not _g234_runs:
+                            _pass3[_k] = {"passed": None, "runs": GATES234_RUNS, "note": "gate not evaluated (module gates did not run)"}
+                        elif all(r == "NA" for r in _results):
+                            _pass3[_k] = {"passed": None, "runs": GATES234_RUNS, "note": "na: gate not applicable"}
+                        else:
+                            _pass3[_k] = {"passed": sum(1 for r in _results if r == "PASS"), "runs": GATES234_RUNS, "note": "module gates234 runs; run 1 is authoritative, runs 2-3 are statistics only"}
+                    _det_note = "deterministic: pure file/list check, single evaluation recorded as 3/3"
+                    for _k in ("1", "5", "F"):
+                        if _k in gates:
+                            _r = {"pass": "PASS", "reject": "FAIL", "na": "NA"}.get(gates[_k][0], "NA")
+                        elif _k in _g:
+                            _r = _g[_k]["result"]
+                        else:
+                            _r = None
+                        _pass3[_k] = _pass3_deterministic(_r, _det_note)
+                    _lat = {k: _p95_ms(_lat_samples.get(k, [])) for k in ("1", "2", "3", "4", "5", "F")}
+                    _rec = {
+                        "task_id": str(task_id),
+                        "ts": _utc_now_iso(),
+                        "gates_version": GATES_VERSION,
+                        "type": "code",
+                        "gates": _final_gates,
+                        "gates234": {"runs": _g234_runs, "ok": _g234.get("ok") if isinstance(_g234, dict) else None} if _g234 is not None else None,
+                        "ok": ok,
+                        "reason": reason,
+                        "runs": GATES234_RUNS,
+                        "pass3": _pass3,
+                        "cost_usd": 0,
+                        "cost_tokens": 0,
+                        "latency_ms": _lat,
+                        "pytest_seconds": {k: [s for s in v if s is not None] for k, v in _pytest_s.items()},
+                        "artifact_pytest_seconds": _SLOP_TEST_SECONDS,
+                        "notes": [
+                            "pass3 for gates 2/3/4 counts PASS over 3 module-gates234 runs; run 1 decides ok, runs 2-3 are statistics only (a flaky repeat is recorded, never promotes a pass to a reject).",
+                            "pass3 for deterministic gates (1/5/F) is recorded as 3/3 from a single evaluation: pure file/list inspection, repeats would be identical. This is NOT evidence of reliability; it only states determinism.",
+                            "latency_ms is nearest-rank P95 over all measured samples for the gate (module runs 3x + inline run 1x for gates 2/3/4; early-check + inline samples for gates 1/5; single sample for F).",
+                            "cost is 0: no LLM call is made by the five gates. Token counts are 0 for the same reason; both are recorded so a future paid step has an account to check against.",
+                        ],
+                    }
+                    _write_verdict_json(task_id, _rec)
                 elif payload.get("type") == "timer":
                     path = os.path.join("/home/ubuntu/ai-team/state/c2-task-results", f"{task_id}.txt")
                     if not os.path.exists(path):

@@ -5,13 +5,34 @@ import io
 import os
 import hashlib
 import ast
+import re
 import subprocess
 import tempfile
 import sys
 import shutil
+import time
 
 BUNDLE_MAGIC = b"PULLONCE-BUNDLE-V1\n"
 DEFAULT_TIMEOUT_S = 120
+
+# M0-A (2026-11-25): per-gate timing of the last gate3/gate4 pytest run.
+# gate3/gate4 keep their (result, reason) return signature; they stash
+# measurements here and check_code_gates reads them into durations_ms /
+# pytest_seconds. Cleared at the top of every check_code_gates call so a
+# skipped gate never reports a stale previous run.
+_LAST_RUN = {}
+
+
+def _parse_pytest_seconds(text):
+    """Last 'in Ns' duration in a pytest-style summary, or None.
+    (Mirrors c2-verifier-20261104._parse_pytest_seconds.)"""
+    ms = re.findall(r"in\s+(\d+(?:\.\d+)?)s\b", text or "")
+    if not ms:
+        return None
+    try:
+        return float(ms[-1])
+    except ValueError:
+        return None
 
 def is_test_file(name):
     return name.startswith("test_") or name.endswith("_test.py")
@@ -143,10 +164,14 @@ def _run_pytest(tmpdir, timeout_s):
     """Run pytest sandboxed (butler C2): sudo unshare -n (no network) +
     setpriv nobody + clean env + prlimit (cpu/as/fsize/nproc) + timeout.
     Fail-closed: if the sandbox itself is unavailable, return None (the
-    gate FAILs) instead of running unsandboxed."""
+    gate FAILs) instead of running unsandboxed.
+    Returns (returncode, tail, elapsed_ms); returncode None means the
+    sandbox was unavailable or the run timed out."""
+    _t0 = time.perf_counter()
     probe = subprocess.run(["sudo", "-n", "true"], capture_output=True, timeout=15)
     if probe.returncode != 0:
-        return (None, "sandbox unavailable: sudo -n failed")
+        return (None, "sandbox unavailable: sudo -n failed",
+                (time.perf_counter() - _t0) * 1000.0)
     cmd = ["sudo", "unshare", "-n", "setpriv", "--reuid=nobody",
            "--regid=nogroup", "--clear-groups",
            "env", "-i", "PATH=/usr/bin:/bin", "HOME=" + str(tmpdir),
@@ -158,11 +183,14 @@ def _run_pytest(tmpdir, timeout_s):
            "python3", "-m", "pytest", "-q"]
     try:
         result = subprocess.run(cmd, cwd=str(tmpdir), capture_output=True, text=True, timeout=timeout_s)
-        return (result.returncode, (result.stdout + result.stderr)[-500:])
+        return (result.returncode, (result.stdout + result.stderr)[-500:],
+                (time.perf_counter() - _t0) * 1000.0)
     except subprocess.TimeoutExpired:
-        return (None, "pytest timeout after %ss" % timeout_s)
+        return (None, "pytest timeout after %ss" % timeout_s,
+                (time.perf_counter() - _t0) * 1000.0)
     except FileNotFoundError as e:
-        return (None, "sandbox unavailable: " + str(e))
+        return (None, "sandbox unavailable: " + str(e),
+                (time.perf_counter() - _t0) * 1000.0)
 
 def gate3_rerun_tests(files: dict[str, bytes], reference_dir=None, timeout_s=120) -> tuple:
     if not any(is_test_file(name) for name in files):
@@ -178,7 +206,9 @@ def gate3_rerun_tests(files: dict[str, bytes], reference_dir=None, timeout_s=120
                 return ("FAIL", "test file " + name + " sha differs from contract reference")
     tmpdir = _make_workdir(files)
     try:
-        returncode, tail = _run_pytest(tmpdir, timeout_s)
+        returncode, tail, elapsed_ms = _run_pytest(tmpdir, timeout_s)
+        _LAST_RUN["3"] = {"duration_ms": round(elapsed_ms, 1),
+                          "pytest_seconds": _parse_pytest_seconds(tail)}
         if returncode == 0:
             return ("PASS", "pytest exit 0 in fresh dir")
         elif returncode is None:
@@ -217,7 +247,11 @@ def gate4_red_green(files: dict[str, bytes], real_passed: bool, timeout_s=120) -
             merged[name] = data
     tmpdir = _make_workdir(merged)
     try:
-        returncode, tail = _run_pytest(tmpdir, timeout_s)
+        returncode, tail, elapsed_ms = _run_pytest(tmpdir, timeout_s)
+        # Gate 4 only runs the stub (the real-source pass is already
+        # established by gate 3); duration/pytest seconds are the stub run's.
+        _LAST_RUN["4"] = {"duration_ms": round(elapsed_ms, 1),
+                          "pytest_seconds": _parse_pytest_seconds(tail)}
         if returncode is None:
             return ("FAIL", tail if tail else "stub pytest timeout")
         if returncode == 0:
@@ -227,23 +261,45 @@ def gate4_red_green(files: dict[str, bytes], real_passed: bool, timeout_s=120) -
         _cleanup_workdir(tmpdir)
 
 def check_code_gates(data: bytes, reference_dir=None, timeout_s=120, require_bundle=False) -> dict:
+    """Run gates 2/3/4 once. Returned dict (backward compatible: old
+    callers only read "2"/"3"/"4"/"ok") gains:
+      durations_ms: {"2"|"3"|"4": wall ms of this call (0.0 when not run)},
+      pytest_seconds: {"3"|"4": pytest-reported seconds or None},
+      runs: 1 (this dict covers a single run; the caller loops for pass^3).
+    Timing lives in this module; the loop lives in the caller, so there is
+    exactly one loop, not one per layer."""
+    _LAST_RUN.clear()
+    _zero = {"durations_ms": {"2": 0.0, "3": 0.0, "4": 0.0},
+             "pytest_seconds": {"3": None, "4": None}, "runs": 1}
     try:
         bundle = parse_bundle(data)
     except Exception as e:
-        return {"2": {"result": "FAIL", "reason": "corrupt bundle: " + str(e)}, "3": {"result": "NA", "reason": "no tests in legacy artifact"}, "4": {"result": "NA", "reason": "no tests in legacy artifact"}, "ok": False}
+        return {"2": {"result": "FAIL", "reason": "corrupt bundle: " + str(e)}, "3": {"result": "NA", "reason": "no tests in legacy artifact"}, "4": {"result": "NA", "reason": "no tests in legacy artifact"}, "ok": False, **_zero}
     if bundle:
+        _t2 = time.perf_counter()
         result2, reason2 = gate2_ast_check(bundle["files"])
+        _d2 = round((time.perf_counter() - _t2) * 1000.0, 1)
         result3, reason3 = gate3_rerun_tests(bundle["files"], reference_dir, timeout_s)
+        _d3 = _LAST_RUN.get("3", {}).get("duration_ms", 0.0)
+        _s3 = _LAST_RUN.get("3", {}).get("pytest_seconds")
         result4, reason4 = gate4_red_green(bundle["files"], result3 == "PASS")
-        return {"2": {"result": result2, "reason": reason2}, "3": {"result": result3, "reason": reason3}, "4": {"result": result4, "reason": reason4}, "ok": result2 != "FAIL" and result3 != "FAIL" and result4 != "FAIL"}
+        _d4 = _LAST_RUN.get("4", {}).get("duration_ms", 0.0)
+        _s4 = _LAST_RUN.get("4", {}).get("pytest_seconds")
+        return {"2": {"result": result2, "reason": reason2}, "3": {"result": result3, "reason": reason3}, "4": {"result": result4, "reason": reason4}, "ok": result2 != "FAIL" and result3 != "FAIL" and result4 != "FAIL",
+                "durations_ms": {"2": _d2, "3": _d3, "4": _d4},
+                "pytest_seconds": {"3": _s3, "4": _s4}, "runs": 1}
     else:
         if require_bundle:
-            return {"2": {"result": "FAIL", "reason": "legacy artifact: contract requires PULLONCE-BUNDLE-V1"}, "3": {"result": "NA", "reason": "no tests in legacy artifact"}, "4": {"result": "NA", "reason": "no tests in legacy artifact"}, "ok": False}
+            return {"2": {"result": "FAIL", "reason": "legacy artifact: contract requires PULLONCE-BUNDLE-V1"}, "3": {"result": "NA", "reason": "no tests in legacy artifact"}, "4": {"result": "NA", "reason": "no tests in legacy artifact"}, "ok": False, **_zero}
         try:
             tree = ast.parse(data)
         except (SyntaxError, UnicodeDecodeError):
-            return {"2": {"result": "FAIL", "reason": "artifact is neither a bundle nor parseable python"}, "3": {"result": "NA", "reason": "no tests in legacy artifact"}, "4": {"result": "NA", "reason": "no tests in legacy artifact"}, "ok": False}
+            return {"2": {"result": "FAIL", "reason": "artifact is neither a bundle nor parseable python"}, "3": {"result": "NA", "reason": "no tests in legacy artifact"}, "4": {"result": "NA", "reason": "no tests in legacy artifact"}, "ok": False, **_zero}
+        _t2 = time.perf_counter()
         result2, reason2 = gate2_ast_check({"legacy.py": data})
+        _d2 = round((time.perf_counter() - _t2) * 1000.0, 1)
         result3, reason3 = ("NA", "no tests in legacy artifact")
         result4, reason4 = ("NA", "no tests in legacy artifact")
-        return {"2": {"result": result2, "reason": reason2}, "3": {"result": result3, "reason": reason3}, "4": {"result": result4, "reason": reason4}, "ok": result2 != "FAIL" and result3 != "FAIL" and result4 != "FAIL"}
+        return {"2": {"result": result2, "reason": reason2}, "3": {"result": result3, "reason": reason3}, "4": {"result": result4, "reason": reason4}, "ok": result2 != "FAIL" and result3 != "FAIL" and result4 != "FAIL",
+                "durations_ms": {"2": _d2, "3": 0.0, "4": 0.0},
+                "pytest_seconds": {"3": None, "4": None}, "runs": 1}

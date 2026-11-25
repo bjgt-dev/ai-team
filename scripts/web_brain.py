@@ -300,7 +300,7 @@ def ask_gemini(page, prompt, timeout, resume_url=None):
         else:
             page.keyboard.press("Enter")
     print(f"[gem_probe] after_send url={page.url}", flush=True, file=sys.stderr)
-    deadline = time.time() + min(timeout, 90)
+    deadline = time.time() + timeout  # 2026-11-25 修：去掉 90 秒硬上限，与 ChatGPT/Claude 一致，--timeout 参数生效
     last_text, stable_since = "", time.time()
     while time.time() < deadline:
         page.wait_for_timeout(1500)

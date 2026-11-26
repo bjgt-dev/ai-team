@@ -15,6 +15,17 @@ expert-review.md 须含：
   至少两家专家名（ChatGPT / Claude / DeepSeek / Gemini，任选两家）
   确认标记（双顾问确认 / 有条件确认 / 已过外脑团评审 / 专家确认）
   处理标记（采纳 / 不采纳 / 修订 —— 证明意见被消化过，不只贴了原文）
+
+单顾问豁免（2026-11-25 董事长单顾问推进令，知识库
+knowledge/机制/single-advisor-proceed-20261125.md）：
+  批判通道因故障跑不成时，单顾问（ChatGPT）确认 + 结构 PASS 即可推进，
+  缺失的评审记为待补项，通道恢复后补做。
+  仅当 expert-review.md 同时满足以下四项时，一家专家也可 PASS：
+  ① 文中出现 ChatGPT（单顾问须为发散顾问 ChatGPT）
+  ② 含确认标记 ③ 含处理标记
+  ④ 文中明确声明“单顾问推进”，且缺失评审已记为“待补项”。
+  无豁免声明的一家专家仍 FAIL；零家专家仍 FAIL。
+  缺省行为（双顾问）不变；豁免通过时输出注明豁免原因。
 """
 import os
 import sys
@@ -22,6 +33,8 @@ import sys
 EXPERTS = ["chatgpt", "claude", "deepseek", "gemini"]
 CONFIRM_MARKERS = ["双顾问确认", "有条件确认", "已过外脑团评审", "专家确认"]
 DISPOSITION_MARKERS = ["采纳", "不采纳", "修订"]
+SINGLE_ADVISOR_MARKERS = ["单顾问推进"]
+BACKLOG_MARKERS = ["待补项"]
 
 
 def check_file(path, label, problems):
@@ -61,11 +74,35 @@ def main():
         text = open(review, encoding="utf-8", errors="ignore").read()
         lowered = text.lower()
         found = [e for e in EXPERTS if e in lowered]
+        confirm_ok = any(m in text for m in CONFIRM_MARKERS)
+        disposition_ok = any(m in text for m in DISPOSITION_MARKERS)
+        # 单顾问豁免（2026-11-25 董事长令）：声明 + 待补项 + ChatGPT 单顾问。
+        # 豁免声明在场时优先按豁免路径判定（文件中其他专家名可能只是
+        # 失败通道的留痕记录，不代表已完成评审），并在输出中注明。
+        exemption_ok = (
+            "chatgpt" in found
+            and any(m in text for m in SINGLE_ADVISOR_MARKERS)
+            and any(m in text for m in BACKLOG_MARKERS)
+        )
+        if exemption_ok:
+            if not confirm_ok:
+                problems.append("专家评审记录缺确认标记（须含：双顾问确认 / 有条件确认 / 已过外脑团评审 / 专家确认）")
+            if not disposition_ok:
+                problems.append("专家评审记录缺处理标记（须含：采纳 / 不采纳 / 修订，证明意见被消化过）")
+            if problems:
+                print("FAIL：方案包未过门禁，不许推给董事长确认：")
+                for p in problems:
+                    print("  - %s" % p)
+                return 1
+            print("PASS（单顾问豁免）：方案包五件齐、单顾问（ChatGPT）确认 + 批判评审缺失已记待补项，"
+                  "可以推给董事长。依据：董事长 2026-11-25 单顾问推进令；"
+                  "缺失评审通道恢复后补做，补做发现实质性问题时允许变更并重新评审。")
+            return 0
         if len(found) < 2:
             problems.append("专家评审记录只提到 %d 家专家（%s），须至少两家" % (len(found), found))
-        if not any(m in text for m in CONFIRM_MARKERS):
+        if not confirm_ok:
             problems.append("专家评审记录缺确认标记（须含：双顾问确认 / 有条件确认 / 已过外脑团评审 / 专家确认）")
-        if not any(m in text for m in DISPOSITION_MARKERS):
+        if not disposition_ok:
             problems.append("专家评审记录缺处理标记（须含：采纳 / 不采纳 / 修订，证明意见被消化过）")
 
     if problems:

@@ -178,6 +178,21 @@ if [ "$SSH_OK" = "1" ]; then
   else
     echo "  本地无 wake-up-check.sh，跳过（用枢纽 wake-check-hub.py 直连亦可）。"
   fi
+  echo "[5e/6] 核对枢纽最新四件是否已应用到本地..."
+  echo "  （SOUL/IDENTITY/MEMORY/AGENTS 四件受运行时保护，shell 写不了；唤醒只会暂存到 ~/workspace/hub-mirror/protected/，须 agent 用 edit 工具应用。没应用完不要报上岗完成。）"
+  for f in SOUL.md IDENTITY.md MEMORY.md AGENTS.md; do
+    staged="$HOME/workspace/hub-mirror/protected/$f"
+    local_f="$HOME/$f"
+    if [ -f "$staged" ]; then
+      if [ -f "$local_f" ] && cmp -s "$staged" "$local_f"; then
+        echo "  $f：本地已是最新"
+      else
+        echo "  $f：待应用——agent 须用 edit 工具把 $staged 内容应用到 $local_f（SOUL/IDENTITY/AGENTS 以暂存为准；MEMORY.md 只合入新增事实）"
+      fi
+    else
+      echo "  $f：暂存缺失（唤醒拉取未跑通，先修唤醒）"
+    fi
+  done
 fi
 
 echo "[6/6] 你的 SSH 公钥（发给董事长加进枢纽 ubuntu 的 ~/.ssh/authorized_keys）："

@@ -1,7 +1,15 @@
 #!/bin/bash
 # kb-rebuild-watch.sh — 知识库自动重建（2026-11-10 董事长令：知识库要让团队用起来，索引不能过期）
 # 机制：每 30 分钟由 cron 跑一次；若 knowledge/ 有文件比 index.npz 新，且没有重建在跑，
-# 则后台启动 build_index.py 重建索引。重建约 21–31 分钟，跑完自动写新 index.npz/index.json。
+# 则后台启动 build_index.py 重建索引。重建约 3 小时（实测 11-26：11:30 建、14:26 写完索引），
+# 跑完自动写新 index.npz/index.json。
+# 触发节奏（2026-11-26 C 批改成“重建完成后再触发下一轮”）：
+#   上一轮未完成（pgrep 见 build_index.py 在跑）不启动新重建；
+#   完成后须同时满足：上一轮已结算成功 + 距上次成功 >= COOLDOWN_AFTER_SUCCESS_SEC
+#   （6 小时攒批）+ knowledge 有新文件，才启动下一轮；上一轮失败则下一轮可重试。
+#   根因：旧 nohup & 让构建子进程继承 cron_flock 的锁 fd 9，锁被捏约 3 小时，
+#   致每 30 分钟 tick SKIP + consecutive>=3 ESCALATE（每天约 6 次噪音）；
+#   现改走 python close_fds=True 启动，watch 退出即放锁，构建中 tick 安静 skip。
 # 2026-11-25 第二波补两道保险（BACKLOG §3）：
 #   1. 失败告警：每轮先结算上一轮构建——日志含 "[index] wrote index.npz + index.json"
 #      或 index.npz mtime 前进过构建开始时间 → 成功；含 Traceback / 无日志 / 无成功
@@ -20,6 +28,9 @@ STATE_FILE="$HOME/ai-team/state/kb-rebuild-watch-state.json"
 OUTBOX="$HOME/ai-team/state/outbox"
 STALE_HOURS=48
 STALE_ALERT_THROTTLE_SEC=21600
+# 上一轮重建成功后，启动下一轮前至少间隔的秒数（6 小时攒批，避免 3 小时
+# 重建刚完立刻又建、无缝连轴；失败重试不受此限，见完成门注释）。
+COOLDOWN_AFTER_SUCCESS_SEC=21600
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
 
@@ -89,6 +100,10 @@ if [ "$DRY_RUN" = "0" ] && [ -n "$LAST_STARTED" ] && [ "$LAST_OUTCOME_FOR" != "$
   state_set last_outcome "$OUTCOME"
   state_set last_outcome_for "$LAST_STARTED"
   state_set last_outcome_ts "$(date +%s)"
+  if [ "$OUTCOME" = "success" ]; then
+    # 完成门用：上次成功时间（失败不更新，失败重试不受冷却限制）。
+    state_set last_success_ts "$(date +%s)"
+  fi
   if [ "$OUTCOME" = "failed" ]; then
     outbox_alert failed "上一轮构建失败：开始时间 $(date -d "@$LAST_STARTED" '+%Y-%m-%d %H:%M' 2>/dev/null || echo "$LAST_STARTED")，日志 $LAST_LOG，原因：$REASON。"
   else
@@ -104,6 +119,20 @@ else
   IDX_T=$(stat -c %Y "$INDEX" 2>/dev/null || echo 0)
   # 比较：knowledge 最新文件比索引新（用整数秒比较，留 1 秒容差）
   NEED=$(python3 -c "print(1 if float('$NEWEST') > float('$IDX_T') + 1 else 0)" 2>/dev/null || echo 0)
+fi
+
+# 2b. 完成门：重建完成后再触发下一轮。NEED=1 且上次成功在冷却期内 → 跳过。
+if [ "$NEED" = "1" ]; then
+  LAST_SUCCESS=$(state_get last_success_ts)
+  if [ -n "$LAST_SUCCESS" ]; then
+    NOW_EPOCH=$(date +%s)
+    ELAPSED=$(( NOW_EPOCH - LAST_SUCCESS ))
+    if [ "$ELAPSED" -lt "$COOLDOWN_AFTER_SUCCESS_SEC" ]; then
+      NEXT=$(( LAST_SUCCESS + COOLDOWN_AFTER_SUCCESS_SEC ))
+      echo "cooldown: last success ${ELAPSED}s ago, next build at $(date -d "@$NEXT" '+%Y-%m-%d %H:%M' 2>/dev/null || echo "$NEXT"), skip"
+      exit 0
+    fi
+  fi
 fi
 
 # 3. 停滞告警：索引 >48h 未更新、需要重建、无构建在跑、上次构建开始于 3 小时前（或从未开始）
@@ -141,7 +170,9 @@ if [ "$DRY_RUN" = "1" ]; then
   echo "DRY-RUN: would rebuild, log=$LOG"
   exit 0
 fi
-cd "$KB_DIR" && nohup ./venv/bin/python build_index.py > "$LOG" 2>&1 &
+# detached 启动：python close_fds=True + start_new_session=True，只把日志 fd
+# 交给构建子进程，不继承 cron_flock 的锁 fd；launcher 立即退出，watch 退出即放锁。
+cd "$KB_DIR" && KB_LOG="$LOG" python3 -c 'import os,subprocess; lf=open(os.environ["KB_LOG"],"wb"); subprocess.Popen(["./venv/bin/python","build_index.py"],stdin=subprocess.DEVNULL,stdout=lf,stderr=subprocess.STDOUT,close_fds=True,start_new_session=True)'
 export STATE_FILE
 state_set last_started_epoch "$(date +%s)"
 state_set last_log "$LOG"

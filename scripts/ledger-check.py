@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """执行台账机制校验（枢纽版，AGENTS.md 执行台账机制，2026-11-06 董事长令）。
+语义（2026-11-26 C 批核实写入）：21:00 轮 = 超期扫描（逐行算 deadline 是否超期
++ DONE 无证据 + 非法状态），不是逐项对账；逐项对账进晨报已按 2026-11-16
+董事长令停用，本脚本不恢复、不代行。
 本地版的枢纽移植：同一校验逻辑，默认台账路径改为枢纽 state/execution-ledger.md。
 文档不是机制，超期与非法关单必须由程序算出来。
 
@@ -18,7 +21,7 @@ try:
 except Exception:  # pragma: no cover
     CST = timezone(timedelta(hours=8))
 
-VALID_STATUS = {"OPEN", "BLOCKED-董事长", "BLOCKED-我方", "DONE", "DROP"}
+VALID_STATUS = {"OPEN", "BLOCKED-董事长", "BLOCKED-我方", "DONE", "DROP", "VERIFY"}
 
 
 def parse_deadline(raw: str):
@@ -39,28 +42,29 @@ def parse_deadline(raw: str):
 
 
 def parse_ledger(path: str):
+    # 2026-11-26 C 批：与本地版统一为新解析逻辑（2026-11-14 对账发现）。
+    # 读全文件所有台账行：表头行与分隔行跳过，其余“|”行一律解析。
+    # 不用 in_table + break——文件尾部“历史教训”节后追加的行没有表头，
+    # 旧逻辑遇第一个非“|”行即 break，把它们全漏了（旧逻辑只解析出 3 行）。
     rows = []
-    in_table = False
     for line in open(path, encoding="utf-8"):
         line = line.rstrip("\n")
-        if line.startswith("| 决策/事项 |"):
-            in_table = True
+        if not line.startswith("|"):
             continue
-        if in_table:
-            if not line.startswith("|"):
-                break
-            if line.startswith("|---"):
-                continue
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            if len(cells) < 5:
-                continue
-            rows.append({
-                "item": cells[0],
-                "status": cells[1],
-                "note": cells[2],
-                "deadline_raw": cells[3],
-                "evidence": cells[4],
-            })
+        if line.startswith("|---"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 5:
+            continue
+        if cells[0] == "决策/事项":
+            continue  # 表头行
+        rows.append({
+            "item": cells[0],
+            "status": cells[1],
+            "note": cells[2],
+            "deadline_raw": cells[3],
+            "evidence": cells[4],
+        })
     return rows
 
 
